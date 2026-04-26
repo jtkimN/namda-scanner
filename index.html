@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>NAMDA 현장 입장 스캐너</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", Arial, sans-serif;
+      background: #0b0f19; color: #fff; overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+    }
+    body { padding: 14px 12px 24px; }
+    .page { width: 100%; max-width: 460px; margin: 0 auto; }
+
+    .header { text-align: center; padding: 6px 4px 14px; }
+    .brand {
+      display: inline-block; padding: 5px 11px; border-radius: 999px;
+      background: rgba(56,189,248,0.15); color: #7dd3fc;
+      font-size: 11px; font-weight: 800; letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    h1 { margin: 0; font-size: 22px; font-weight: 900; line-height: 1.3; }
+    .sub { margin-top: 6px; color: #94a3b8; font-size: 13px; }
+
+    .gate {
+      background: #fff; color: #111827; border-radius: 18px;
+      padding: 22px 18px; box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    .gate label { display: block; font-size: 14px; font-weight: 800; margin: 6px 0 8px; color: #374151; }
+    .gate input {
+      width: 100%; height: 52px; border: 1px solid #d1d5db;
+      border-radius: 13px; padding: 0 14px; font-size: 16px;
+      outline: none; background: #f9fafb; color: #111827;
+      -webkit-appearance: none; appearance: none;
+    }
+    .gate button {
+      width: 100%; height: 54px; margin-top: 16px; border: 0;
+      border-radius: 14px; background: #0f172a; color: #fff;
+      font-size: 16px; font-weight: 900;
+    }
+    .gate .hint { margin-top: 12px; font-size: 12px; color: #6b7280; line-height: 1.5; }
+
+    .scanner { display: none; }
+    .video-wrap {
+      position: relative; width: 100%; aspect-ratio: 1 / 1;
+      background: #000; border-radius: 18px; overflow: hidden;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    video {
+      width: 100%; height: 100%; object-fit: cover;
+      display: block;
+    }
+    .reticle {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .reticle-box {
+      width: 62%; aspect-ratio: 1 / 1; border-radius: 18px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.35);
+      border: 2px solid rgba(255,255,255,0.85);
+    }
+    .corner {
+      position: absolute; width: 26px; height: 26px;
+      border-color: #38bdf8; border-style: solid; border-width: 0;
+    }
+    .corner.tl { top: -2px; left: -2px; border-top-width: 4px; border-left-width: 4px; border-top-left-radius: 18px; }
+    .corner.tr { top: -2px; right: -2px; border-top-width: 4px; border-right-width: 4px; border-top-right-radius: 18px; }
+    .corner.bl { bottom: -2px; left: -2px; border-bottom-width: 4px; border-left-width: 4px; border-bottom-left-radius: 18px; }
+    .corner.br { bottom: -2px; right: -2px; border-bottom-width: 4px; border-right-width: 4px; border-bottom-right-radius: 18px; }
+
+    .status-bar {
+      margin-top: 14px; padding: 13px 14px;
+      background: rgba(255,255,255,0.06); border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #38bdf8; flex-shrink: 0; }
+    .dot.busy { background: #fbbf24; }
+    .dot.ok { background: #34d399; }
+    .dot.dup { background: #fbbf24; }
+    .dot.err { background: #f87171; }
+    #statusText { font-size: 14px; font-weight: 700; }
+
+    .result {
+      margin-top: 12px; padding: 16px; border-radius: 16px;
+      background: #fff; color: #111827;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+      display: none;
+    }
+    .result.show { display: block; }
+    .result-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .result-tag {
+      font-size: 12px; font-weight: 900; letter-spacing: 0.5px;
+      padding: 5px 10px; border-radius: 999px;
+    }
+    .result-tag.ok  { background: #dcfce7; color: #14532d; }
+    .result-tag.dup { background: #fef3c7; color: #78350f; }
+    .result-tag.err { background: #fee2e2; color: #7f1d1d; }
+    .result-time { font-size: 12px; color: #6b7280; font-weight: 700; }
+    .result-name { font-size: 22px; font-weight: 900; margin: 2px 0 4px; }
+    .result-id   { font-size: 13px; color: #6b7280; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+    .result-extra { margin-top: 10px; font-size: 13px; color: #374151; line-height: 1.5; }
+
+    .toolbar {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+      margin-top: 14px;
+    }
+    .toolbar button {
+      height: 46px; border: 0; border-radius: 12px;
+      background: rgba(255,255,255,0.08); color: #e5e7eb;
+      font-size: 13px; font-weight: 800;
+    }
+    .toolbar button.danger { background: rgba(248,113,113,0.15); color: #fca5a5; }
+
+    .stat-row {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+      margin-top: 14px;
+    }
+    .stat {
+      background: rgba(255,255,255,0.05); border-radius: 12px;
+      padding: 10px 8px; text-align: center;
+    }
+    .stat .n { font-size: 20px; font-weight: 900; color: #fff; }
+    .stat .l { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+    .footer { text-align: center; margin-top: 16px; color: #64748b; font-size: 11px; }
+    .err-msg { display: none; margin-top: 10px; padding: 12px; border-radius: 12px;
+      background: rgba(248,113,113,0.12); color: #fca5a5; font-size: 13px; line-height: 1.5; }
+    .err-msg.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div class="brand">NAMDA · STAFF SCANNER</div>
+      <h1>현장 입장 스캐너</h1>
+      <div class="sub" id="subText">스태프 키를 입력하세요</div>
+    </div>
+
+    <!-- 1. 게이트 화면 -->
+    <div class="gate" id="gate">
+      <label>API 주소 (Web App URL)</label>
+      <input id="apiInput" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" inputmode="url">
+
+      <label style="margin-top:14px;">스태프 키</label>
+      <input id="keyInput" type="password" placeholder="스태프 키 입력" autocomplete="off">
+
+      <button id="startBtn">스캐너 시작</button>
+      <div class="hint">
+        · 처음 1회만 입력하면 이 기기에 저장됩니다.<br>
+        · 카메라 권한을 허용해 주세요.
+      </div>
+      <div class="err-msg" id="gateErr"></div>
+    </div>
+
+    <!-- 2. 스캐너 화면 -->
+    <div class="scanner" id="scanner">
+      <div class="video-wrap">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="reticle">
+          <div class="reticle-box">
+            <div class="corner tl"></div>
+            <div class="corner tr"></div>
+            <div class="corner bl"></div>
+            <div class="corner br"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <div class="dot" id="statusDot"></div>
+        <div id="statusText">QR을 화면에 비춰주세요</div>
+      </div>
+
+      <div class="result" id="result">
+        <div class="result-head">
+          <div class="result-tag ok" id="resultTag">입장 완료</div>
+          <div class="result-time" id="resultTime"></div>
+        </div>
+        <div class="result-name" id="resultName">—</div>
+        <div class="result-id" id="resultId">—</div>
+        <div class="result-extra" id="resultExtra"></div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat"><div class="n" id="statOk">0</div><div class="l">입장</div></div>
+        <div class="stat"><div class="n" id="statDup">0</div><div class="l">중복</div></div>
+        <div class="stat"><div class="n" id="statErr">0</div><div class="l">오류</div></div>
+      </div>
+
+      <div class="toolbar">
+        <button id="soundBtn">🔔 소리 ON</button>
+        <button id="logoutBtn" class="danger">로그아웃</button>
+      </div>
+
+      <div class="err-msg" id="scanErr"></div>
+    </div>
+
+    <div class="footer">© NAMDA · 현장 스태프 전용</div>
+  </div>
+
+  <!-- jsQR 폴백 (BarcodeDetector 미지원 단말 대응) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
+  <script>
+    // ========== 상태 ==========
+    const STORAGE_API = 'namda_scanner_api';
+    const STORAGE_KEY = 'namda_scanner_key';
+    const COOLDOWN_MS = 2200;            // 같은 QR 재스캔 무시 시간
+    const SUCCESS_RESET_MS = 2500;       // 결과 표시 후 자동 리셋
+
+    const els = {
+      gate: document.getElementById('gate'),
+      scanner: document.getElementById('scanner'),
+      apiInput: document.getElementById('apiInput'),
+      keyInput: document.getElementById('keyInput'),
+      startBtn: document.getElementById('startBtn'),
+      gateErr: document.getElementById('gateErr'),
+      scanErr: document.getElementById('scanErr'),
+      video: document.getElementById('video'),
+      statusDot: document.getElementById('statusDot'),
+      statusText: document.getElementById('statusText'),
+      subText: document.getElementById('subText'),
+      result: document.getElementById('result'),
+      resultTag: document.getElementById('resultTag'),
+      resultTime: document.getElementById('resultTime'),
+      resultName: document.getElementById('resultName'),
+      resultId: document.getElementById('resultId'),
+      resultExtra: document.getElementById('resultExtra'),
+      statOk: document.getElementById('statOk'),
+      statDup: document.getElementById('statDup'),
+      statErr: document.getElementById('statErr'),
+      soundBtn: document.getElementById('soundBtn'),
+      logoutBtn: document.getElementById('logoutBtn'),
+    };
+
+    let API = '';
+    let KEY = '';
+    let scanLoop = null;
+    let lastTicket = '';
+    let lastScanTime = 0;
+    let busy = false;
+    let resultTimer = null;
+    let stats = { ok: 0, dup: 0, err: 0 };
+    let soundOn = true;
+
+    // ========== 초기 로드 ==========
+    (function init(){
+      const savedApi = localStorage.getItem(STORAGE_API) || '';
+      const savedKey = localStorage.getItem(STORAGE_KEY) || '';
+      els.apiInput.value = savedApi;
+      els.keyInput.value = savedKey;
+
+      els.startBtn.addEventListener('click', startScanner);
+      els.logoutBtn.addEventListener('click', logout);
+      els.soundBtn.addEventListener('click', toggleSound);
+    })();
+
+    // ========== 게이트 → 스캐너 ==========
+    async function startScanner(){
+      const api = els.apiInput.value.trim();
+      const key = els.keyInput.value.trim();
+
+      if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(api)) {
+        showGateErr('Web App URL 형식이 올바르지 않습니다. /exec 으로 끝나야 합니다.');
+        return;
+      }
+      if (!key) {
+        showGateErr('스태프 키를 입력하세요.');
+        return;
+      }
+
+      API = api; KEY = key;
+      localStorage.setItem(STORAGE_API, api);
+      localStorage.setItem(STORAGE_KEY, key);
+
+      // 카메라 시작
+      try {
+        await initCamera();
+      } catch (err) {
+        showGateErr('카메라 오류: ' + (err && err.message || err));
+        return;
+      }
+
+      els.gate.style.display = 'none';
+      els.scanner.style.display = 'block';
+      els.subText.textContent = 'QR을 화면에 비춰주세요';
+      setStatus('idle', 'QR을 화면에 비춰주세요');
+
+      startScanLoop();
+    }
+
+    function showGateErr(msg){
+      els.gateErr.textContent = msg;
+      els.gateErr.classList.add('show');
+    }
+
+    function logout(){
+      if (scanLoop) clearInterval(scanLoop);
+      const stream = els.video.srcObject;
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      localStorage.removeItem(STORAGE_KEY);
+      // API 주소는 유지 (재로그인시 편의)
+      location.reload();
+    }
+
+    // ========== 카메라 ==========
+    async function initCamera(){
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('이 브라우저는 카메라 API를 지원하지 않습니다.');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width:  { ideal: 1280 },
+          height: { ideal: 1280 }
+        },
+        audio: false
+      });
+      els.video.srcObject = stream;
+      await new Promise(res => {
+        if (els.video.readyState >= 2) return res();
+        els.video.onloadedmetadata = () => res();
+      });
+      await els.video.play();
+    }
+
+    // ========== 스캔 루프 ==========
+    function startScanLoop(){
+      const useNative = ('BarcodeDetector' in window);
+      const detector = useNative ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+      scanLoop = setInterval(async () => {
+        if (busy) return;
+        if (els.video.readyState < 2) return;
+
+        let raw = '';
+        try {
+          if (useNative) {
+            const codes = await detector.detect(els.video);
+            if (codes.length) raw = codes[0].rawValue;
+          } else {
+            // jsQR 폴백
+            canvas.width = els.video.videoWidth;
+            canvas.height = els.video.videoHeight;
+            ctx.drawImage(els.video, 0, 0, canvas.width, canvas.height);
+            const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+            if (code) raw = code.data;
+          }
+        } catch (e) {
+          // 무시하고 다음 프레임
+          return;
+        }
+
+        if (!raw) return;
+
+        const ticket = extractTicket(raw);
+        if (!ticket) {
+          flashStatus('err', '인식 실패: 형식 오류');
+          return;
+        }
+
+        const now = Date.now();
+        if (ticket === lastTicket && now - lastScanTime < COOLDOWN_MS) return;
+        lastTicket = ticket; lastScanTime = now;
+
+        await processCheckin(ticket);
+      }, 250);
+    }
+
+    function extractTicket(raw){
+      // 3자리 숫자 그대로
+      if (/^\d{3}$/.test(raw)) return raw;
+      // URL 안에 ?id=XXX
+      try {
+        const u = new URL(raw);
+        const id = u.searchParams.get('id') || '';
+        if (/^\d{3}$/.test(id)) return id;
+      } catch(e){}
+      return '';
+    }
+
+    // ========== 체크인 호출 ==========
+    async function processCheckin(ticket){
+      busy = true;
+      setStatus('busy', '처리 중… ' + ticket);
+
+      const url = API
+        + '?mode=checkin&format=json'
+        + '&id=' + encodeURIComponent(ticket)
+        + '&key=' + encodeURIComponent(KEY)
+        + '&t=' + Date.now();
+
+      try {
+        const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        handleResult(data);
+      } catch (err) {
+        stats.err++; updateStats();
+        showResult({
+          status: 'error',
+          name: '',
+          id: ticket,
+          message: '네트워크/서버 오류: ' + (err.message || err)
+        });
+        beep('err');
+        flashStatus('err', '오류 — 다시 시도');
+      } finally {
+        // SUCCESS_RESET_MS 후 다음 스캔 가능
+        clearTimeout(resultTimer);
+        resultTimer = setTimeout(() => {
+          busy = false;
+          setStatus('idle', 'QR을 화면에 비춰주세요');
+        }, SUCCESS_RESET_MS);
+      }
+    }
+
+    function handleResult(data){
+      const s = data.status || 'error';
+      if (s === 'ok') {
+        stats.ok++; beep('ok'); flashStatus('ok', '입장 완료');
+      } else if (s === 'duplicate') {
+        stats.dup++; beep('dup'); flashStatus('dup', '이미 입장됨');
+      } else {
+        stats.err++; beep('err'); flashStatus('err', '오류');
+      }
+      updateStats();
+      showResult(data);
+    }
+
+    function showResult(data){
+      els.result.classList.add('show');
+      const tag = els.resultTag;
+      tag.classList.remove('ok','dup','err');
+
+      if (data.status === 'ok') {
+        tag.classList.add('ok'); tag.textContent = '입장 완료';
+        els.resultExtra.textContent = data.time ? ('입장시간: ' + data.time) : '';
+      } else if (data.status === 'duplicate') {
+        tag.classList.add('dup'); tag.textContent = '이미 입장됨';
+        els.resultExtra.textContent = data.time ? ('최초 입장시간: ' + data.time) : '중복 스캔';
+      } else {
+        tag.classList.add('err'); tag.textContent = '오류';
+        els.resultExtra.textContent = data.message || '알 수 없는 오류';
+      }
+
+      els.resultTime.textContent = nowHHMMSS();
+      els.resultName.textContent = data.name || '—';
+      els.resultId.textContent = '#' + (data.id || '—');
+    }
+
+    // ========== UI 헬퍼 ==========
+    function setStatus(kind, text){
+      const dot = els.statusDot;
+      dot.classList.remove('busy','ok','dup','err');
+      if (kind !== 'idle') dot.classList.add(kind);
+      els.statusText.textContent = text;
+    }
+    function flashStatus(kind, text){
+      setStatus(kind, text);
+    }
+    function updateStats(){
+      els.statOk.textContent = stats.ok;
+      els.statDup.textContent = stats.dup;
+      els.statErr.textContent = stats.err;
+    }
+    function nowHHMMSS(){
+      const d = new Date();
+      const p = n => String(n).padStart(2,'0');
+      return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+    }
+
+    // ========== 사운드 ==========
+    let audioCtx = null;
+    function toggleSound(){
+      soundOn = !soundOn;
+      els.soundBtn.textContent = soundOn ? '🔔 소리 ON' : '🔕 소리 OFF';
+    }
+    function beep(kind){
+      if (!soundOn) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine';
+
+        if (kind === 'ok')      { o.frequency.value = 880; }
+        else if (kind === 'dup'){ o.frequency.value = 520; }
+        else                    { o.frequency.value = 220; }
+
+        g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.18);
+
+        o.start();
+        o.stop(audioCtx.currentTime + 0.2);
+      } catch(e) {}
+    }
+  </script>
+</body>
+</html>
