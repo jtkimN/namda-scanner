@@ -214,7 +214,7 @@
     const STORAGE_API = 'namda_scanner_api';
     const STORAGE_KEY = 'namda_scanner_key';
     const COOLDOWN_MS = 2200;            // 같은 QR 재스캔 무시 시간
-    const SUCCESS_RESET_MS = 2500;       // 결과 표시 후 자동 리셋
+    const SUCCESS_RESET_MS = 2000;       // 결과 표시 후 자동 리셋
 
     const els = {
       gate: document.getElementById('gate'),
@@ -318,7 +318,7 @@
       }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: 'environment' },
+          facingMode: { ideal: 'user' },
           width:  { ideal: 1280 },
           height: { ideal: 1280 }
         },
@@ -423,6 +423,7 @@
         resultTimer = setTimeout(() => {
           busy = false;
           setStatus('idle', 'QR을 화면에 비춰주세요');
+          els.result.classList.remove('show');
         }, SUCCESS_RESET_MS);
       }
     }
