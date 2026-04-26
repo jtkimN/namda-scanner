@@ -2,514 +2,836 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>NAMDA 현장 입장 스캐너</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0b0f19">
+  <title>NAMDA 셀프 체크인</title>
   <style>
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
     html, body {
-      margin: 0; padding: 0; width: 100%; min-height: 100vh;
+      margin: 0; padding: 0; width: 100%; height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", Arial, sans-serif;
-      background: #0b0f19; color: #fff; overflow-x: hidden;
+      background: #0b0f19; color: #fff; overflow: hidden;
       -webkit-text-size-adjust: 100%;
+      overscroll-behavior: none;
     }
-    body { padding: 14px 12px 24px; }
-    .page { width: 100%; max-width: 460px; margin: 0 auto; }
 
-    .header { text-align: center; padding: 6px 4px 14px; }
-    .brand {
-      display: inline-block; padding: 5px 11px; border-radius: 999px;
-      background: rgba(56,189,248,0.15); color: #7dd3fc;
-      font-size: 11px; font-weight: 800; letter-spacing: 1px;
-      margin-bottom: 8px;
+    /* ========== 게이트 화면 (스태프 초기 세팅용) ========== */
+    .gate-wrap {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      padding: 30px;
+      background: #0b0f19;
+      overflow-y: auto;
     }
-    h1 { margin: 0; font-size: 22px; font-weight: 900; line-height: 1.3; }
-    .sub { margin-top: 6px; color: #94a3b8; font-size: 13px; }
-
     .gate {
-      background: #fff; color: #111827; border-radius: 18px;
-      padding: 22px 18px; box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+      width: 100%; max-width: 520px;
+      background: #fff; color: #111827; border-radius: 22px;
+      padding: 36px 30px; box-shadow: 0 18px 48px rgba(0,0,0,0.45);
     }
-    .gate label { display: block; font-size: 14px; font-weight: 800; margin: 6px 0 8px; color: #374151; }
+    .gate h2 { margin: 0 0 6px; font-size: 24px; font-weight: 900; }
+    .gate .gate-sub { margin: 0 0 22px; font-size: 14px; color: #6b7280; }
+    .gate label { display: block; font-size: 14px; font-weight: 800; margin: 14px 0 8px; color: #374151; }
     .gate input {
-      width: 100%; height: 52px; border: 1px solid #d1d5db;
-      border-radius: 13px; padding: 0 14px; font-size: 16px;
+      width: 100%; height: 56px; border: 1px solid #d1d5db;
+      border-radius: 14px; padding: 0 16px; font-size: 16px;
       outline: none; background: #f9fafb; color: #111827;
       -webkit-appearance: none; appearance: none;
     }
     .gate button {
-      width: 100%; height: 54px; margin-top: 16px; border: 0;
+      width: 100%; height: 60px; margin-top: 22px; border: 0;
       border-radius: 14px; background: #0f172a; color: #fff;
-      font-size: 16px; font-weight: 900;
+      font-size: 17px; font-weight: 900;
     }
-    .gate .hint { margin-top: 12px; font-size: 12px; color: #6b7280; line-height: 1.5; }
+    .gate .hint { margin-top: 14px; font-size: 12px; color: #6b7280; line-height: 1.5; }
+    .err-msg { display: none; margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+      background: #fee2e2; color: #991b1b; font-size: 14px; line-height: 1.5; font-weight: 700; }
+    .err-msg.show { display: block; }
 
-    .scanner { display: none; }
-    .video-wrap {
-      position: relative; width: 100%; aspect-ratio: 1 / 1;
-      background: #000; border-radius: 18px; overflow: hidden;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    /* ========== 키오스크 메인 화면 ========== */
+    .kiosk { display: none; position: fixed; inset: 0; }
+    .kiosk.active { display: block; }
+
+    /* 공통 헤더 */
+    .kiosk-header {
+      position: absolute; top: 0; left: 0; right: 0;
+      padding: 18px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      z-index: 5; pointer-events: none;
+    }
+    .brand-tag {
+      display: inline-block; padding: 8px 14px; border-radius: 999px;
+      background: rgba(56,189,248,0.18); color: #7dd3fc;
+      font-size: 12px; font-weight: 900; letter-spacing: 1.5px;
+    }
+    .stat-mini {
+      display: flex; gap: 14px;
+      font-size: 13px; color: #94a3b8; font-weight: 800;
+    }
+    .stat-mini span b { color: #fff; font-weight: 900; margin-right: 4px; }
+
+    /* 푸터 안내 */
+    .kiosk-footer {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      text-align: center; padding: 18px;
+      color: #64748b; font-size: 12px;
+      z-index: 5; pointer-events: none;
+    }
+
+    /* ========== 가로 모드 (Landscape) - 좌우 분할 ========== */
+    .stage {
+      position: absolute; inset: 70px 28px 50px 28px;
+      display: grid; gap: 24px;
+    }
+
+    @media (orientation: landscape) {
+      .stage {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr;
+      }
+    }
+    @media (orientation: portrait) {
+      .stage {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+    }
+
+    /* 카메라 영역 */
+    .camera-pane {
+      position: relative;
+      background: #000; border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 18px 42px rgba(0,0,0,0.4);
     }
     video {
       width: 100%; height: 100%; object-fit: cover;
       display: block;
     }
+    /* 전면카메라 미러링 (셀프 체크인용) */
+    video.mirror { transform: scaleX(-1); }
+
     .reticle {
       position: absolute; inset: 0;
       display: flex; align-items: center; justify-content: center;
       pointer-events: none;
     }
     .reticle-box {
-      width: 62%; aspect-ratio: 1 / 1; border-radius: 18px;
-      box-shadow: 0 0 0 9999px rgba(0,0,0,0.35);
-      border: 2px solid rgba(255,255,255,0.85);
+      position: relative;
+      width: 70%; aspect-ratio: 1 / 1; border-radius: 24px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+      max-width: min(70vh, 70vw);
     }
     .corner {
-      position: absolute; width: 26px; height: 26px;
+      position: absolute; width: 44px; height: 44px;
       border-color: #38bdf8; border-style: solid; border-width: 0;
     }
-    .corner.tl { top: -2px; left: -2px; border-top-width: 4px; border-left-width: 4px; border-top-left-radius: 18px; }
-    .corner.tr { top: -2px; right: -2px; border-top-width: 4px; border-right-width: 4px; border-top-right-radius: 18px; }
-    .corner.bl { bottom: -2px; left: -2px; border-bottom-width: 4px; border-left-width: 4px; border-bottom-left-radius: 18px; }
-    .corner.br { bottom: -2px; right: -2px; border-bottom-width: 4px; border-right-width: 4px; border-bottom-right-radius: 18px; }
+    .corner.tl { top: -3px; left: -3px; border-top-width: 6px; border-left-width: 6px; border-top-left-radius: 24px; }
+    .corner.tr { top: -3px; right: -3px; border-top-width: 6px; border-right-width: 6px; border-top-right-radius: 24px; }
+    .corner.bl { bottom: -3px; left: -3px; border-bottom-width: 6px; border-left-width: 6px; border-bottom-left-radius: 24px; }
+    .corner.br { bottom: -3px; right: -3px; border-bottom-width: 6px; border-right-width: 6px; border-bottom-right-radius: 24px; }
 
-    .status-bar {
-      margin-top: 14px; padding: 13px 14px;
-      background: rgba(255,255,255,0.06); border-radius: 14px;
+    .reticle-hint {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      padding: 10px 20px; border-radius: 999px;
+      background: rgba(15,23,42,0.78); backdrop-filter: blur(8px);
+      color: #fff; font-size: 18px; font-weight: 800; letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    /* 결과 패널 (오른쪽 또는 아래) */
+    .result-pane {
+      background: rgba(255,255,255,0.04); border-radius: 24px;
       border: 1px solid rgba(255,255,255,0.08);
-      display: flex; align-items: center; gap: 10px;
+      padding: 28px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center;
+      min-height: 0;
+      position: relative;
     }
-    .dot { width: 10px; height: 10px; border-radius: 50%; background: #38bdf8; flex-shrink: 0; }
-    .dot.busy { background: #fbbf24; }
-    .dot.ok { background: #34d399; }
-    .dot.dup { background: #fbbf24; }
-    .dot.err { background: #f87171; }
-    #statusText { font-size: 14px; font-weight: 700; }
 
-    .result {
-      margin-top: 12px; padding: 16px; border-radius: 16px;
-      background: #fff; color: #111827;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+    /* 대기 상태 */
+    .idle-view {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 18px; height: 100%;
+    }
+    .idle-icon {
+      width: 88px; height: 88px; border-radius: 24px;
+      background: rgba(56,189,248,0.12);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .idle-icon svg { width: 48px; height: 48px; }
+    .idle-title {
+      font-size: 32px; font-weight: 900; line-height: 1.25;
+    }
+    .idle-sub {
+      font-size: 17px; color: #94a3b8; line-height: 1.55; max-width: 380px;
+    }
+
+    /* 결과 표시 (성공/중복/오류) */
+    .result-view {
       display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; height: 100%; width: 100%;
     }
-    .result.show { display: block; }
-    .result-head {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 10px;
-    }
+    .result-view.show { display: flex; }
+
     .result-tag {
-      font-size: 12px; font-weight: 900; letter-spacing: 0.5px;
-      padding: 5px 10px; border-radius: 999px;
+      padding: 10px 22px; border-radius: 999px;
+      font-size: 16px; font-weight: 900; letter-spacing: 0.5px;
     }
     .result-tag.ok  { background: #dcfce7; color: #14532d; }
     .result-tag.dup { background: #fef3c7; color: #78350f; }
     .result-tag.err { background: #fee2e2; color: #7f1d1d; }
-    .result-time { font-size: 12px; color: #6b7280; font-weight: 700; }
-    .result-name { font-size: 22px; font-weight: 900; margin: 2px 0 4px; }
-    .result-id   { font-size: 13px; color: #6b7280; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
-    .result-extra { margin-top: 10px; font-size: 13px; color: #374151; line-height: 1.5; }
 
-    .toolbar {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-      margin-top: 14px;
+    .result-name {
+      font-size: 56px; font-weight: 900;
+      color: #fff; line-height: 1.1;
+      margin: 4px 0;
+      max-width: 100%; overflow: hidden; text-overflow: ellipsis;
     }
-    .toolbar button {
-      height: 46px; border: 0; border-radius: 12px;
-      background: rgba(255,255,255,0.08); color: #e5e7eb;
+    .result-id {
+      font-size: 18px; color: #94a3b8;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-weight: 700;
+    }
+    .result-extra {
+      margin-top: 10px; font-size: 16px; color: #cbd5e1;
+      line-height: 1.55;
+    }
+    .result-msg {
+      font-size: 22px; font-weight: 800; color: #fbbf24;
+      max-width: 90%;
+    }
+
+    /* 처리 중 오버레이 */
+    .busy-overlay {
+      position: absolute; inset: 0;
+      background: rgba(11,15,25,0.85); border-radius: 24px;
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; gap: 18px;
+      z-index: 3;
+    }
+    .busy-overlay.show { display: flex; }
+    .spinner {
+      width: 56px; height: 56px;
+      border: 4px solid rgba(255,255,255,0.15);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .busy-text { font-size: 18px; font-weight: 800; color: #cbd5e1; }
+
+    /* ========== 작은 화면 / 모바일 폴백 ========== */
+    @media (max-width: 600px) {
+      .stage { inset: 60px 14px 40px 14px; gap: 14px; }
+      .kiosk-header { padding: 14px 16px; }
+      .result-name { font-size: 38px; }
+      .idle-title { font-size: 24px; }
+      .idle-sub { font-size: 15px; }
+      .result-pane { padding: 18px; }
+    }
+
+    /* ========== 스태프 비밀 메뉴 (5번 탭으로 활성화) ========== */
+    .secret-tap {
+      position: absolute; top: 0; right: 0;
+      width: 80px; height: 80px;
+      z-index: 10;
+    }
+    .admin-modal {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.6);
+      display: none; align-items: center; justify-content: center;
+      padding: 30px;
+    }
+    .admin-modal.show { display: flex; }
+    .admin-card {
+      background: #fff; color: #111827;
+      border-radius: 20px; padding: 28px;
+      width: 100%; max-width: 420px;
+    }
+    .admin-card h3 { margin: 0 0 16px; font-size: 20px; font-weight: 900; }
+    .admin-card .stats-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      margin-bottom: 18px;
+    }
+    .admin-card .stat-box {
+      background: #f3f4f6; border-radius: 12px;
+      padding: 14px 8px; text-align: center;
+    }
+    .admin-card .stat-box .n { font-size: 24px; font-weight: 900; color: #111827; }
+    .admin-card .stat-box .l { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .admin-card .btn-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    }
+    .admin-card button {
+      height: 44px; border: 0; border-radius: 12px;
       font-size: 13px; font-weight: 800;
     }
-    .toolbar button.danger { background: rgba(248,113,113,0.15); color: #fca5a5; }
-
-    .stat-row {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
-      margin-top: 14px;
+    .admin-card button.primary { background: #0f172a; color: #fff; }
+    .admin-card button.secondary { background: #e5e7eb; color: #111827; }
+    .admin-card button.danger { background: #fee2e2; color: #991b1b; }
+    .admin-card button.full { grid-column: 1 / -1; }
+    .admin-card .pin-input {
+      width: 100%; height: 52px; border: 1px solid #d1d5db;
+      border-radius: 12px; padding: 0 14px; font-size: 18px;
+      text-align: center; letter-spacing: 8px; font-weight: 900;
+      margin-bottom: 12px;
     }
-    .stat {
-      background: rgba(255,255,255,0.05); border-radius: 12px;
-      padding: 10px 8px; text-align: center;
-    }
-    .stat .n { font-size: 20px; font-weight: 900; color: #fff; }
-    .stat .l { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-
-    .footer { text-align: center; margin-top: 16px; color: #64748b; font-size: 11px; }
-    .err-msg { display: none; margin-top: 10px; padding: 12px; border-radius: 12px;
-      background: rgba(248,113,113,0.12); color: #fca5a5; font-size: 13px; line-height: 1.5; }
-    .err-msg.show { display: block; }
   </style>
 </head>
 <body>
-  <div class="page">
-    <div class="header">
-      <div class="brand">NAMDA · STAFF SCANNER</div>
-      <h1>현장 입장 스캐너</h1>
-      <div class="sub" id="subText">스태프 키를 입력하세요</div>
+
+<!-- ========================================== -->
+<!--  1. 게이트 화면 (스태프 초기 세팅)         -->
+<!-- ========================================== -->
+<div class="gate-wrap" id="gateWrap">
+  <div class="gate">
+    <h2>스태프 초기 세팅</h2>
+    <p class="gate-sub">행사 시작 전 1회만 입력하면 단말에 저장됩니다.</p>
+
+    <label>API 주소 (Web App URL)</label>
+    <input id="apiInput" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" inputmode="url">
+
+    <label style="margin-top:14px;">스태프 키</label>
+    <input id="keyInput" type="password" placeholder="스태프 키 입력" autocomplete="off">
+
+    <label style="margin-top:14px;">관리자 PIN (4자리 숫자)</label>
+    <input id="pinInput" type="password" placeholder="예: 0427" inputmode="numeric" maxlength="4" autocomplete="off">
+
+    <button id="startBtn">키오스크 시작</button>
+    <div class="hint">
+      · 카메라 권한을 허용해 주세요.<br>
+      · 시작 후 화면 우측 상단 모서리를 5번 빠르게 누르면 관리자 메뉴가 열립니다.<br>
+      · 관리자 메뉴에서 PIN 입력 후 종료 / 통계 확인 가능.
     </div>
+    <div class="err-msg" id="gateErr"></div>
+  </div>
+</div>
 
-    <!-- 1. 게이트 화면 -->
-    <div class="gate" id="gate">
-      <label>API 주소 (Web App URL)</label>
-      <input id="apiInput" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" inputmode="url">
+<!-- ========================================== -->
+<!--  2. 키오스크 메인 화면                     -->
+<!-- ========================================== -->
+<div class="kiosk" id="kiosk">
 
-      <label style="margin-top:14px;">스태프 키</label>
-      <input id="keyInput" type="password" placeholder="스태프 키 입력" autocomplete="off">
+  <!-- 비밀 영역: 우측 상단 모서리 5번 탭 → 관리자 메뉴 -->
+  <div class="secret-tap" id="secretTap"></div>
 
-      <button id="startBtn">스캐너 시작</button>
-      <div class="hint">
-        · 처음 1회만 입력하면 이 기기에 저장됩니다.<br>
-        · 카메라 권한을 허용해 주세요.
-      </div>
-      <div class="err-msg" id="gateErr"></div>
+  <div class="kiosk-header">
+    <div class="brand-tag">NAMDA · CHECK-IN</div>
+    <div class="stat-mini" id="statMini" style="display:none;">
+      <span><b id="statOk">0</b>입장</span>
+      <span><b id="statDup">0</b>중복</span>
     </div>
-
-    <!-- 2. 스캐너 화면 -->
-    <div class="scanner" id="scanner">
-      <div class="video-wrap">
-        <video id="video" autoplay playsinline muted></video>
-        <div class="reticle">
-          <div class="reticle-box">
-            <div class="corner tl"></div>
-            <div class="corner tr"></div>
-            <div class="corner bl"></div>
-            <div class="corner br"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="status-bar">
-        <div class="dot" id="statusDot"></div>
-        <div id="statusText">QR을 화면에 비춰주세요</div>
-      </div>
-
-      <div class="result" id="result">
-        <div class="result-head">
-          <div class="result-tag ok" id="resultTag">입장 완료</div>
-          <div class="result-time" id="resultTime"></div>
-        </div>
-        <div class="result-name" id="resultName">—</div>
-        <div class="result-id" id="resultId">—</div>
-        <div class="result-extra" id="resultExtra"></div>
-      </div>
-
-      <div class="stat-row">
-        <div class="stat"><div class="n" id="statOk">0</div><div class="l">입장</div></div>
-        <div class="stat"><div class="n" id="statDup">0</div><div class="l">중복</div></div>
-        <div class="stat"><div class="n" id="statErr">0</div><div class="l">오류</div></div>
-      </div>
-
-      <div class="toolbar">
-        <button id="soundBtn">🔔 소리 ON</button>
-        <button id="logoutBtn" class="danger">로그아웃</button>
-      </div>
-
-      <div class="err-msg" id="scanErr"></div>
-    </div>
-
-    <div class="footer">© NAMDA · 현장 스태프 전용</div>
   </div>
 
-  <!-- jsQR 폴백 (BarcodeDetector 미지원 단말 대응) -->
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <div class="stage">
 
-  <script>
-    // ========== 상태 ==========
-    const STORAGE_API = 'namda_scanner_api';
-    const STORAGE_KEY = 'namda_scanner_key';
-    const COOLDOWN_MS = 2200;            // 같은 QR 재스캔 무시 시간
-    const SUCCESS_RESET_MS = 2000;       // 결과 표시 후 자동 리셋
+    <!-- 카메라 -->
+    <div class="camera-pane">
+      <video id="video" autoplay playsinline muted class="mirror"></video>
+      <div class="reticle">
+        <div class="reticle-hint">QR을 화면 가운데에 비춰주세요</div>
+        <div class="reticle-box">
+          <div class="corner tl"></div>
+          <div class="corner tr"></div>
+          <div class="corner bl"></div>
+          <div class="corner br"></div>
+        </div>
+      </div>
+    </div>
 
-    const els = {
-      gate: document.getElementById('gate'),
-      scanner: document.getElementById('scanner'),
-      apiInput: document.getElementById('apiInput'),
-      keyInput: document.getElementById('keyInput'),
-      startBtn: document.getElementById('startBtn'),
-      gateErr: document.getElementById('gateErr'),
-      scanErr: document.getElementById('scanErr'),
-      video: document.getElementById('video'),
-      statusDot: document.getElementById('statusDot'),
-      statusText: document.getElementById('statusText'),
-      subText: document.getElementById('subText'),
-      result: document.getElementById('result'),
-      resultTag: document.getElementById('resultTag'),
-      resultTime: document.getElementById('resultTime'),
-      resultName: document.getElementById('resultName'),
-      resultId: document.getElementById('resultId'),
-      resultExtra: document.getElementById('resultExtra'),
-      statOk: document.getElementById('statOk'),
-      statDup: document.getElementById('statDup'),
-      statErr: document.getElementById('statErr'),
-      soundBtn: document.getElementById('soundBtn'),
-      logoutBtn: document.getElementById('logoutBtn'),
-    };
+    <!-- 결과/안내 -->
+    <div class="result-pane">
+      <!-- 대기 상태 -->
+      <div class="idle-view" id="idleView">
+        <div class="idle-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <path d="M14 14h3v3M20 14v.01M14 17v.01M17 20v.01M14 20v.01M20 17v.01M20 20v.01"/>
+          </svg>
+        </div>
+        <div class="idle-title">QR을 비춰주세요</div>
+        <div class="idle-sub">
+          입장 등록하신 본인의 QR 코드를<br>
+          카메라에 가져다 대시면<br>
+          자동으로 입장 처리됩니다.
+        </div>
+      </div>
 
-    let API = '';
-    let KEY = '';
-    let scanLoop = null;
-    let lastTicket = '';
-    let lastScanTime = 0;
-    let busy = false;
-    let resultTimer = null;
-    let stats = { ok: 0, dup: 0, err: 0 };
-    let soundOn = true;
+      <!-- 결과 표시 -->
+      <div class="result-view" id="resultView">
+        <div class="result-tag ok" id="resultTag">입장 완료</div>
+        <div class="result-name" id="resultName">—</div>
+        <div class="result-id" id="resultId">#—</div>
+        <div class="result-extra" id="resultExtra"></div>
+        <div class="result-msg" id="resultMsg" style="display:none;"></div>
+      </div>
 
-    // ========== 초기 로드 ==========
-    (function init(){
-      const savedApi = localStorage.getItem(STORAGE_API) || '';
-      const savedKey = localStorage.getItem(STORAGE_KEY) || '';
-      els.apiInput.value = savedApi;
-      els.keyInput.value = savedKey;
+      <!-- 처리 중 오버레이 -->
+      <div class="busy-overlay" id="busyOverlay">
+        <div class="spinner"></div>
+        <div class="busy-text">처리 중...</div>
+      </div>
+    </div>
 
-      els.startBtn.addEventListener('click', startScanner);
-      els.logoutBtn.addEventListener('click', logout);
-      els.soundBtn.addEventListener('click', toggleSound);
-    })();
+  </div>
 
-    // ========== 게이트 → 스캐너 ==========
-    async function startScanner(){
-      const api = els.apiInput.value.trim();
-      const key = els.keyInput.value.trim();
+  <div class="kiosk-footer">© NAMDA 셀프 체크인 시스템</div>
+</div>
 
-      if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(api)) {
-        showGateErr('Web App URL 형식이 올바르지 않습니다. /exec 으로 끝나야 합니다.');
-        return;
+<!-- ========================================== -->
+<!--  3. 관리자 모달 (PIN 인증)                 -->
+<!-- ========================================== -->
+<div class="admin-modal" id="adminModal">
+  <div class="admin-card" id="adminCard">
+
+    <!-- PIN 입력 단계 -->
+    <div id="adminPinStep">
+      <h3>관리자 인증</h3>
+      <input type="password" inputmode="numeric" maxlength="4"
+             class="pin-input" id="adminPin" placeholder="● ● ● ●">
+      <div class="btn-row">
+        <button class="secondary" id="adminCancel">취소</button>
+        <button class="primary" id="adminConfirm">확인</button>
+      </div>
+      <div class="err-msg" id="pinErr" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- 메뉴 단계 -->
+    <div id="adminMenuStep" style="display:none;">
+      <h3>관리자 메뉴</h3>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="n" id="aStatOk">0</div><div class="l">입장</div></div>
+        <div class="stat-box"><div class="n" id="aStatDup">0</div><div class="l">중복</div></div>
+        <div class="stat-box"><div class="n" id="aStatErr">0</div><div class="l">오류</div></div>
+      </div>
+      <div class="btn-row">
+        <button class="secondary" id="toggleSoundBtn">🔔 소리 ON</button>
+        <button class="secondary" id="toggleStatBtn">📊 통계 표시</button>
+        <button class="secondary" id="resetStatBtn">🔄 통계 초기화</button>
+        <button class="secondary" id="closeAdminBtn">✕ 닫기</button>
+        <button class="danger full" id="exitKioskBtn">🚪 키오스크 종료 (재설정)</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- jsQR 폴백 -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
+<script>
+  // ========== 상수 ==========
+  const STORAGE_API = 'namda_scanner_api';
+  const STORAGE_KEY = 'namda_scanner_key';
+  const STORAGE_PIN = 'namda_scanner_pin';
+  const STORAGE_SOUND = 'namda_scanner_sound';
+  const STORAGE_STAT_VIS = 'namda_scanner_stat_vis';
+  const COOLDOWN_MS = 2500;          // 같은 QR 재스캔 무시
+  const RESULT_SHOW_MS = 2000;       // 결과 표시 시간
+
+  // ========== DOM ==========
+  const els = {
+    gateWrap: document.getElementById('gateWrap'),
+    kiosk: document.getElementById('kiosk'),
+    apiInput: document.getElementById('apiInput'),
+    keyInput: document.getElementById('keyInput'),
+    pinInput: document.getElementById('pinInput'),
+    startBtn: document.getElementById('startBtn'),
+    gateErr: document.getElementById('gateErr'),
+    video: document.getElementById('video'),
+
+    idleView: document.getElementById('idleView'),
+    resultView: document.getElementById('resultView'),
+    resultTag: document.getElementById('resultTag'),
+    resultName: document.getElementById('resultName'),
+    resultId: document.getElementById('resultId'),
+    resultExtra: document.getElementById('resultExtra'),
+    resultMsg: document.getElementById('resultMsg'),
+    busyOverlay: document.getElementById('busyOverlay'),
+
+    statMini: document.getElementById('statMini'),
+    statOk: document.getElementById('statOk'),
+    statDup: document.getElementById('statDup'),
+
+    secretTap: document.getElementById('secretTap'),
+    adminModal: document.getElementById('adminModal'),
+    adminPinStep: document.getElementById('adminPinStep'),
+    adminMenuStep: document.getElementById('adminMenuStep'),
+    adminPin: document.getElementById('adminPin'),
+    adminCancel: document.getElementById('adminCancel'),
+    adminConfirm: document.getElementById('adminConfirm'),
+    pinErr: document.getElementById('pinErr'),
+    aStatOk: document.getElementById('aStatOk'),
+    aStatDup: document.getElementById('aStatDup'),
+    aStatErr: document.getElementById('aStatErr'),
+    toggleSoundBtn: document.getElementById('toggleSoundBtn'),
+    toggleStatBtn: document.getElementById('toggleStatBtn'),
+    resetStatBtn: document.getElementById('resetStatBtn'),
+    closeAdminBtn: document.getElementById('closeAdminBtn'),
+    exitKioskBtn: document.getElementById('exitKioskBtn'),
+  };
+
+  // ========== 상태 ==========
+  let API = '', KEY = '', PIN = '';
+  let scanLoop = null;
+  let lastTicket = '', lastScanTime = 0;
+  let busy = false;
+  let resultTimer = null;
+  let stats = { ok: 0, dup: 0, err: 0 };
+  let soundOn = true;
+  let statVisible = false;
+  let wakeLock = null;
+  let secretTapCount = 0;
+  let secretTapTimer = null;
+
+  // ========== 초기화 ==========
+  (function init(){
+    els.apiInput.value = localStorage.getItem(STORAGE_API) || '';
+    els.keyInput.value = localStorage.getItem(STORAGE_KEY) || '';
+    els.pinInput.value = localStorage.getItem(STORAGE_PIN) || '';
+    soundOn = localStorage.getItem(STORAGE_SOUND) !== '0';
+    statVisible = localStorage.getItem(STORAGE_STAT_VIS) === '1';
+
+    els.startBtn.addEventListener('click', startKiosk);
+
+    // 비밀 영역 (5번 탭)
+    els.secretTap.addEventListener('click', handleSecretTap);
+
+    // 관리자 모달
+    els.adminCancel.addEventListener('click', closeAdminModal);
+    els.adminConfirm.addEventListener('click', verifyPin);
+    els.adminPin.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') verifyPin();
+    });
+    els.toggleSoundBtn.addEventListener('click', toggleSound);
+    els.toggleStatBtn.addEventListener('click', toggleStat);
+    els.resetStatBtn.addEventListener('click', resetStats);
+    els.closeAdminBtn.addEventListener('click', closeAdminModal);
+    els.exitKioskBtn.addEventListener('click', exitKiosk);
+
+    // Wake Lock 자동 갱신 (탭 가시성 변경 시 재요청)
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible' && els.kiosk.classList.contains('active')) {
+        await requestWakeLock();
       }
-      if (!key) {
-        showGateErr('스태프 키를 입력하세요.');
-        return;
+    });
+
+    updateStatVisibility();
+    updateSoundLabel();
+  })();
+
+  // ========== 키오스크 시작 ==========
+  async function startKiosk(){
+    const api = els.apiInput.value.trim();
+    const key = els.keyInput.value.trim();
+    const pin = els.pinInput.value.trim();
+
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(api)) {
+      return showGateErr('Web App URL 형식이 올바르지 않습니다. /exec 으로 끝나야 합니다.');
+    }
+    if (!key) return showGateErr('스태프 키를 입력하세요.');
+    if (!/^\d{4}$/.test(pin)) return showGateErr('관리자 PIN은 숫자 4자리여야 합니다.');
+
+    API = api; KEY = key; PIN = pin;
+    localStorage.setItem(STORAGE_API, api);
+    localStorage.setItem(STORAGE_KEY, key);
+    localStorage.setItem(STORAGE_PIN, pin);
+
+    try {
+      await initCamera();
+    } catch (err) {
+      return showGateErr('카메라 오류: ' + (err && err.message || err));
+    }
+
+    // 풀스크린 진입
+    try { await document.documentElement.requestFullscreen(); } catch(e) { /* 일부 브라우저 미지원 */ }
+
+    // Wake Lock 활성화
+    await requestWakeLock();
+
+    els.gateWrap.style.display = 'none';
+    els.kiosk.classList.add('active');
+
+    startScanLoop();
+  }
+
+  function showGateErr(msg){
+    els.gateErr.textContent = msg;
+    els.gateErr.classList.add('show');
+  }
+
+  // ========== 카메라 ==========
+  async function initCamera(){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('이 브라우저는 카메라 API를 지원하지 않습니다.');
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'user' },  // 셀프체크인 → 전면 카메라
+        width:  { ideal: 1920 },
+        height: { ideal: 1920 }
+      },
+      audio: false
+    });
+    els.video.srcObject = stream;
+    await new Promise(res => {
+      if (els.video.readyState >= 2) return res();
+      els.video.onloadedmetadata = () => res();
+    });
+    await els.video.play();
+  }
+
+  // ========== Wake Lock (화면 자동꺼짐 방지) ==========
+  async function requestWakeLock(){
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
       }
+    } catch (e) {
+      // Wake Lock 실패해도 키오스크는 계속 동작
+      console.warn('Wake Lock 실패:', e);
+    }
+  }
 
-      API = api; KEY = key;
-      localStorage.setItem(STORAGE_API, api);
-      localStorage.setItem(STORAGE_KEY, key);
+  // ========== 스캔 루프 ==========
+  function startScanLoop(){
+    const useNative = ('BarcodeDetector' in window);
+    const detector = useNative ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-      // 카메라 시작
+    scanLoop = setInterval(async () => {
+      if (busy) return;
+      if (els.video.readyState < 2) return;
+
+      let raw = '';
       try {
-        await initCamera();
-      } catch (err) {
-        showGateErr('카메라 오류: ' + (err && err.message || err));
-        return;
-      }
-
-      els.gate.style.display = 'none';
-      els.scanner.style.display = 'block';
-      els.subText.textContent = 'QR을 화면에 비춰주세요';
-      setStatus('idle', 'QR을 화면에 비춰주세요');
-
-      startScanLoop();
-    }
-
-    function showGateErr(msg){
-      els.gateErr.textContent = msg;
-      els.gateErr.classList.add('show');
-    }
-
-    function logout(){
-      if (scanLoop) clearInterval(scanLoop);
-      const stream = els.video.srcObject;
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      localStorage.removeItem(STORAGE_KEY);
-      // API 주소는 유지 (재로그인시 편의)
-      location.reload();
-    }
-
-    // ========== 카메라 ==========
-    async function initCamera(){
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('이 브라우저는 카메라 API를 지원하지 않습니다.');
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'user' },
-          width:  { ideal: 1280 },
-          height: { ideal: 1280 }
-        },
-        audio: false
-      });
-      els.video.srcObject = stream;
-      await new Promise(res => {
-        if (els.video.readyState >= 2) return res();
-        els.video.onloadedmetadata = () => res();
-      });
-      await els.video.play();
-    }
-
-    // ========== 스캔 루프 ==========
-    function startScanLoop(){
-      const useNative = ('BarcodeDetector' in window);
-      const detector = useNative ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
-
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-      scanLoop = setInterval(async () => {
-        if (busy) return;
-        if (els.video.readyState < 2) return;
-
-        let raw = '';
-        try {
-          if (useNative) {
-            const codes = await detector.detect(els.video);
-            if (codes.length) raw = codes[0].rawValue;
-          } else {
-            // jsQR 폴백
-            canvas.width = els.video.videoWidth;
-            canvas.height = els.video.videoHeight;
-            ctx.drawImage(els.video, 0, 0, canvas.width, canvas.height);
-            const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
-            if (code) raw = code.data;
-          }
-        } catch (e) {
-          // 무시하고 다음 프레임
-          return;
+        if (useNative) {
+          const codes = await detector.detect(els.video);
+          if (codes.length) raw = codes[0].rawValue;
+        } else {
+          canvas.width = els.video.videoWidth;
+          canvas.height = els.video.videoHeight;
+          ctx.drawImage(els.video, 0, 0, canvas.width, canvas.height);
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+          if (code) raw = code.data;
         }
+      } catch (e) { return; }
 
-        if (!raw) return;
+      if (!raw) return;
 
-        const ticket = extractTicket(raw);
-        if (!ticket) {
-          flashStatus('err', '인식 실패: 형식 오류');
-          return;
-        }
+      const ticket = extractTicket(raw);
+      if (!ticket) return;  // 형식 오류는 조용히 무시 (셀프체크인 UX)
 
-        const now = Date.now();
-        if (ticket === lastTicket && now - lastScanTime < COOLDOWN_MS) return;
-        lastTicket = ticket; lastScanTime = now;
+      const now = Date.now();
+      if (ticket === lastTicket && now - lastScanTime < COOLDOWN_MS) return;
+      lastTicket = ticket; lastScanTime = now;
 
-        await processCheckin(ticket);
-      }, 250);
+      await processCheckin(ticket);
+    }, 250);
+  }
+
+  function extractTicket(raw){
+    if (/^\d{3}$/.test(raw)) return raw;
+    try {
+      const u = new URL(raw);
+      const id = u.searchParams.get('id') || '';
+      if (/^\d{3}$/.test(id)) return id;
+    } catch(e){}
+    return '';
+  }
+
+  // ========== 체크인 호출 ==========
+  async function processCheckin(ticket){
+    busy = true;
+    showBusy(true);
+
+    const url = API
+      + '?mode=checkin&format=json'
+      + '&id=' + encodeURIComponent(ticket)
+      + '&key=' + encodeURIComponent(KEY)
+      + '&t=' + Date.now();
+
+    try {
+      const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      handleResult(data);
+    } catch (err) {
+      stats.err++; updateStats();
+      showResult({ status: 'error', name: '', id: ticket, message: '잠시 후 다시 시도해 주세요' });
+      beep('err');
+    } finally {
+      showBusy(false);
+      clearTimeout(resultTimer);
+      resultTimer = setTimeout(() => {
+        busy = false;
+        showIdle();
+      }, RESULT_SHOW_MS);
     }
+  }
 
-    function extractTicket(raw){
-      // 3자리 숫자 그대로
-      if (/^\d{3}$/.test(raw)) return raw;
-      // URL 안에 ?id=XXX
-      try {
-        const u = new URL(raw);
-        const id = u.searchParams.get('id') || '';
-        if (/^\d{3}$/.test(id)) return id;
-      } catch(e){}
-      return '';
-    }
+  function handleResult(data){
+    const s = data.status || 'error';
+    if (s === 'ok') { stats.ok++; beep('ok'); }
+    else if (s === 'duplicate') { stats.dup++; beep('dup'); }
+    else { stats.err++; beep('err'); }
+    updateStats();
+    showResult(data);
+  }
 
-    // ========== 체크인 호출 ==========
-    async function processCheckin(ticket){
-      busy = true;
-      setStatus('busy', '처리 중… ' + ticket);
+  // ========== UI 표시 ==========
+  function showIdle(){
+    els.idleView.style.display = 'flex';
+    els.resultView.classList.remove('show');
+  }
 
-      const url = API
-        + '?mode=checkin&format=json'
-        + '&id=' + encodeURIComponent(ticket)
-        + '&key=' + encodeURIComponent(KEY)
-        + '&t=' + Date.now();
+  function showResult(data){
+    els.idleView.style.display = 'none';
+    els.resultView.classList.add('show');
 
-      try {
-        const res = await fetch(url, { method: 'GET', redirect: 'follow' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        handleResult(data);
-      } catch (err) {
-        stats.err++; updateStats();
-        showResult({
-          status: 'error',
-          name: '',
-          id: ticket,
-          message: '네트워크/서버 오류: ' + (err.message || err)
-        });
-        beep('err');
-        flashStatus('err', '오류 — 다시 시도');
-      } finally {
-        // SUCCESS_RESET_MS 후 다음 스캔 가능
-        clearTimeout(resultTimer);
-        resultTimer = setTimeout(() => {
-          busy = false;
-          setStatus('idle', 'QR을 화면에 비춰주세요');
-          els.result.classList.remove('show');
-        }, SUCCESS_RESET_MS);
-      }
-    }
+    const tag = els.resultTag;
+    tag.classList.remove('ok','dup','err');
+    els.resultMsg.style.display = 'none';
+    els.resultExtra.textContent = '';
 
-    function handleResult(data){
-      const s = data.status || 'error';
-      if (s === 'ok') {
-        stats.ok++; beep('ok'); flashStatus('ok', '입장 완료');
-      } else if (s === 'duplicate') {
-        stats.dup++; beep('dup'); flashStatus('dup', '이미 입장됨');
-      } else {
-        stats.err++; beep('err'); flashStatus('err', '오류');
-      }
-      updateStats();
-      showResult(data);
-    }
-
-    function showResult(data){
-      els.result.classList.add('show');
-      const tag = els.resultTag;
-      tag.classList.remove('ok','dup','err');
-
-      if (data.status === 'ok') {
-        tag.classList.add('ok'); tag.textContent = '입장 완료';
-        els.resultExtra.textContent = data.time ? ('입장시간: ' + data.time) : '';
-      } else if (data.status === 'duplicate') {
-        tag.classList.add('dup'); tag.textContent = '이미 입장됨';
-        els.resultExtra.textContent = data.time ? ('최초 입장시간: ' + data.time) : '중복 스캔';
-      } else {
-        tag.classList.add('err'); tag.textContent = '오류';
-        els.resultExtra.textContent = data.message || '알 수 없는 오류';
-      }
-
-      els.resultTime.textContent = nowHHMMSS();
+    if (data.status === 'ok') {
+      tag.classList.add('ok'); tag.textContent = '입장 완료';
       els.resultName.textContent = data.name || '—';
       els.resultId.textContent = '#' + (data.id || '—');
+      if (data.time) {
+        const t = String(data.time).split(' ')[1] || data.time;
+        els.resultExtra.textContent = '입장시간: ' + t;
+      }
+    } else if (data.status === 'duplicate') {
+      tag.classList.add('dup'); tag.textContent = '이미 입장됨';
+      els.resultName.textContent = data.name || '—';
+      els.resultId.textContent = '#' + (data.id || '—');
+      els.resultExtra.textContent = '이미 입장 처리되었습니다';
+    } else {
+      tag.classList.add('err'); tag.textContent = '확인 필요';
+      els.resultName.textContent = '';
+      els.resultId.textContent = '';
+      els.resultMsg.textContent = data.message || '등록되지 않은 QR입니다';
+      els.resultMsg.style.display = 'block';
     }
+  }
 
-    // ========== UI 헬퍼 ==========
-    function setStatus(kind, text){
-      const dot = els.statusDot;
-      dot.classList.remove('busy','ok','dup','err');
-      if (kind !== 'idle') dot.classList.add(kind);
-      els.statusText.textContent = text;
-    }
-    function flashStatus(kind, text){
-      setStatus(kind, text);
-    }
-    function updateStats(){
-      els.statOk.textContent = stats.ok;
-      els.statDup.textContent = stats.dup;
-      els.statErr.textContent = stats.err;
-    }
-    function nowHHMMSS(){
-      const d = new Date();
-      const p = n => String(n).padStart(2,'0');
-      return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
-    }
+  function showBusy(on){
+    els.busyOverlay.classList.toggle('show', on);
+  }
 
-    // ========== 사운드 ==========
-    let audioCtx = null;
-    function toggleSound(){
-      soundOn = !soundOn;
-      els.soundBtn.textContent = soundOn ? '🔔 소리 ON' : '🔕 소리 OFF';
+  function updateStats(){
+    els.statOk.textContent = stats.ok;
+    els.statDup.textContent = stats.dup;
+    els.aStatOk.textContent = stats.ok;
+    els.aStatDup.textContent = stats.dup;
+    els.aStatErr.textContent = stats.err;
+  }
+
+  function updateStatVisibility(){
+    els.statMini.style.display = statVisible ? 'flex' : 'none';
+    els.toggleStatBtn.textContent = statVisible ? '📊 통계 숨김' : '📊 통계 표시';
+  }
+
+  function updateSoundLabel(){
+    els.toggleSoundBtn.textContent = soundOn ? '🔔 소리 ON' : '🔕 소리 OFF';
+  }
+
+  // ========== 사운드 ==========
+  let audioCtx = null;
+  function beep(kind){
+    if (!soundOn) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.type = 'sine';
+      if (kind === 'ok')      { o.frequency.value = 880; }
+      else if (kind === 'dup'){ o.frequency.value = 520; }
+      else                    { o.frequency.value = 220; }
+      g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.2);
+      o.start();
+      o.stop(audioCtx.currentTime + 0.22);
+    } catch(e) {}
+  }
+
+  // ========== 비밀 영역 (관리자 진입) ==========
+  function handleSecretTap(){
+    secretTapCount++;
+    clearTimeout(secretTapTimer);
+    secretTapTimer = setTimeout(() => { secretTapCount = 0; }, 1500);
+
+    if (secretTapCount >= 5) {
+      secretTapCount = 0;
+      openAdminModal();
     }
-    function beep(kind){
-      if (!soundOn) return;
-      try {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const o = audioCtx.createOscillator();
-        const g = audioCtx.createGain();
-        o.connect(g); g.connect(audioCtx.destination);
-        o.type = 'sine';
+  }
 
-        if (kind === 'ok')      { o.frequency.value = 880; }
-        else if (kind === 'dup'){ o.frequency.value = 520; }
-        else                    { o.frequency.value = 220; }
+  function openAdminModal(){
+    els.adminPin.value = '';
+    els.pinErr.classList.remove('show');
+    els.adminPinStep.style.display = 'block';
+    els.adminMenuStep.style.display = 'none';
+    els.adminModal.classList.add('show');
+    setTimeout(() => els.adminPin.focus(), 100);
+  }
 
-        g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.01);
-        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.18);
+  function closeAdminModal(){
+    els.adminModal.classList.remove('show');
+  }
 
-        o.start();
-        o.stop(audioCtx.currentTime + 0.2);
-      } catch(e) {}
+  function verifyPin(){
+    const input = els.adminPin.value.trim();
+    if (input === PIN) {
+      els.adminPinStep.style.display = 'none';
+      els.adminMenuStep.style.display = 'block';
+      updateStats();
+    } else {
+      els.pinErr.textContent = 'PIN이 일치하지 않습니다.';
+      els.pinErr.classList.add('show');
+      els.adminPin.value = '';
     }
-  </script>
+  }
+
+  function toggleSound(){
+    soundOn = !soundOn;
+    localStorage.setItem(STORAGE_SOUND, soundOn ? '1' : '0');
+    updateSoundLabel();
+  }
+
+  function toggleStat(){
+    statVisible = !statVisible;
+    localStorage.setItem(STORAGE_STAT_VIS, statVisible ? '1' : '0');
+    updateStatVisibility();
+  }
+
+  function resetStats(){
+    if (!confirm('현재 누적 통계를 0으로 초기화합니다. 계속하시겠습니까?')) return;
+    stats = { ok: 0, dup: 0, err: 0 };
+    updateStats();
+  }
+
+  function exitKiosk(){
+    if (!confirm('키오스크를 종료하고 초기 화면으로 돌아갑니다.\n저장된 API/키/PIN은 유지됩니다.')) return;
+    if (scanLoop) clearInterval(scanLoop);
+    const stream = els.video.srcObject;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (wakeLock) { try { wakeLock.release(); } catch(e){} }
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch(e){}
+    location.reload();
+  }
+</script>
 </body>
 </html>
