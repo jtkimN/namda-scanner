@@ -299,7 +299,7 @@
     <input id="keyInput" type="password" placeholder="스태프 키 입력" autocomplete="off">
 
     <label style="margin-top:14px;">관리자 PIN (4자리 숫자)</label>
-    <input id="pinInput" type="password" placeholder="예: 0427" inputmode="numeric" maxlength="4" autocomplete="off">
+    <input id="pinInput" type="tel" placeholder="예: 0427" maxlength="4" autocomplete="off" pattern="[0-9]*">
 
     <button id="startBtn">키오스크 시작</button>
     <div class="hint">
@@ -532,11 +532,16 @@
     const key = els.keyInput.value.trim();
     const pin = els.pinInput.value.trim();
 
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(api)) {
-      return showGateErr('Web App URL 형식이 올바르지 않습니다. /exec 으로 끝나야 합니다.');
+    // 디버깅 - 입력값 확인
+    console.log('[startKiosk] API len:', api.length, 'KEY len:', key.length, 'PIN len:', pin.length);
+
+    if (!api || !api.includes('script.google.com') || !api.endsWith('/exec')) {
+      return showGateErr('API 주소를 다시 확인해 주세요. /exec 으로 끝나야 합니다.');
     }
     if (!key) return showGateErr('스태프 키를 입력하세요.');
-    if (!/^\d{4}$/.test(pin)) return showGateErr('관리자 PIN은 숫자 4자리여야 합니다.');
+    if (!pin || pin.length !== 4 || !/^\d+$/.test(pin)) {
+      return showGateErr('관리자 PIN은 숫자 4자리여야 합니다. (현재 입력: ' + pin.length + '자)');
+    }
 
     API = api; KEY = key; PIN = pin;
     localStorage.setItem(STORAGE_API, api);
