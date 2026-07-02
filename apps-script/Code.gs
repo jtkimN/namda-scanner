@@ -9,6 +9,7 @@
  * 설계 원칙 (지난번 오류 원천 차단)
  *  · 번호는 "행 위치"가 아니라 "값"으로 조회 → 시트 정렬돼도 엉뚱한 사람 안 뜸
  *  · LockService 로 동시쓰기 직렬화 → 스캐너 2대 동시에도 데이터 안 깨짐
+ *  · 알림톡 발송(네트워크)은 락 밖에서 처리 → 현장 대량 동시등록에도 번호부여·체크인이 안 밀림
  *  · 토큰 검증 → 위조/타인 QR 차단
  *  · JSONP 반환 → 브라우저 CORS/리다이렉트 문제 회피 (지난번 "처리 오류" 주범)
  *  · 열은 "머리글 이름"으로 찾음 → 열 순서 바뀌어도 안전
@@ -17,16 +18,19 @@
  *    setup() 실행 시 필요한 속성 목록을 로그로 안내합니다.
  */
 
-// ===== 시트 머리글 이름 (한글 헤더 그대로) =====
+// ===== 시트 머리글 이름 =====
+// NAME/PHONE 은 "포함" 매칭으로 찾습니다. 폼 질문 제목이 "성함을 입력해주세요." 처럼 길어도 인식됩니다.
 var COL = {
-  NAME:    '성함',
-  PHONE:   '전화번호',
-  ID:      '번호',       // 스크립트가 추가
-  TOKEN:   '토큰',       // 스크립트가 추가
-  CHECKED: '입장여부',   // 스크립트가 추가
-  TIME:    '입장시각',   // 스크립트가 추가
-  SEND:    '발송상태'    // 스크립트가 추가
+  NAME:    '성함',       // 아래 NAME_KEYS 중 하나를 포함하는 열
+  PHONE:   '전화번호',   // 아래 PHONE_KEYS 중 하나를 포함하는 열
+  ID:      '번호',       // 스크립트가 추가 (정확 일치)
+  TOKEN:   '토큰',       // 스크립트가 추가 (정확 일치)
+  CHECKED: '입장여부',   // 스크립트가 추가 (정확 일치)
+  TIME:    '입장시각',   // 스크립트가 추가 (정확 일치)
+  SEND:    '발송상태'    // 스크립트가 추가 (정확 일치)
 };
+var NAME_KEYS  = ['성함', '이름'];              // 이름 열 판별 키워드
+var PHONE_KEYS = ['전화', '휴대', '핸드폰'];    // 전화 열 판별 키워드
 var ADDED_COLS = [COL.ID, COL.TOKEN, COL.CHECKED, COL.TIME, COL.SEND];
 
 // ===== 설정 읽기 (스크립트 속성) =====
@@ -40,7 +44,7 @@ function cfg_(){
     template:     p.getProperty('PPURIO_TEMPLATE') || '',    // 알림톡 템플릿코드
     fromNumber:   p.getProperty('PPURIO_FROM') || '',        // (선택) 실패시 문자 대체 발신번호
     staffKey:     p.getProperty('STAFF_KEY') || '',
-    qrBase:       p.getProperty('QR_BASE') || 'https://jtkimN.github.io/namda-scanner/qr.html',
+    qrBase:       p.getProperty('QR_BASE') || 'https://checkin.namda.site/qr.html',
     eventName:    p.getProperty('EVENT_NAME') || '보이스피싱 방지 인증기술 세미나 및 시연회',
     smsFallback:  (p.getProperty('SMS_FALLBACK') || 'N') === 'Y'
   };
@@ -51,7 +55,7 @@ function cfg_(){
 // =====================================================
 function setup(){
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheets()[0]; // 폼 응답 시트(첫 시트) 기준
+  var sheet = responseSheet_(); // 폼 응답 탭 자동 선택
   ensureColumns_(sheet);
 
   // 폼 제출 트리거 (중복 방지: 기존 삭제 후 생성)
@@ -79,71 +83,78 @@ function setup(){
 
 // 이미 접수된(트리거 이전) 응답들에 번호·토큰 소급 부여 + 알림톡 발송
 function assignExisting(sendAlimtalk){
+  var sheet = responseSheet_();
+  var hm, rows = [];
+
+  // 1) 락 안: 번호·토큰 일괄 부여 (짧게, 네트워크 없음)
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
     ensureColumns_(sheet);
-    var hm = headerMap_(sheet);
+    hm = headerMap_(sheet);
     var last = sheet.getLastRow();
-    if (last < 2) { Logger.log('데이터 없음'); return; }
-    var c = cfg_();
-    var made = 0, sent = 0;
+    if (last < 2) { Logger.log('데이터 없음'); lock.releaseLock(); return; }
     for (var r=2; r<=last; r++){
       var id = String(sheet.getRange(r, hm[COL.ID]).getValue()).trim();
-      if (!id){
-        id = nextId_(sheet, hm);
-        sheet.getRange(r, hm[COL.ID]).setValue(id);
-      }
+      if (!id){ id = nextId_(sheet, hm); sheet.getRange(r, hm[COL.ID]).setValue(id); }
       var tok = String(sheet.getRange(r, hm[COL.TOKEN]).getValue()).trim();
-      if (!tok){
-        tok = randomToken_();
-        sheet.getRange(r, hm[COL.TOKEN]).setValue(tok);
-      }
-      made++;
-      if (sendAlimtalk){
-        var name = String(sheet.getRange(r, hm[COL.NAME]).getValue()).trim();
-        var phone = String(sheet.getRange(r, hm[COL.PHONE]).getValue()).trim();
-        var link = buildLink_(c.qrBase, id, tok, name);
-        var res = sendAlimtalk_(name, phone, link);
-        sheet.getRange(r, hm[COL.SEND]).setValue(res.ok ? ('발송 ' + nowStr_()) : ('실패: ' + res.msg));
-        if (res.ok) sent++;
-        Utilities.sleep(120); // rate-limit 여유
-      }
+      if (!tok){ tok = randomToken_(); sheet.getRange(r, hm[COL.TOKEN]).setValue(tok); }
+      rows.push({ r:r, id:id, tok:tok });
     }
-    Logger.log('소급 부여 ' + made + '건, 알림톡 발송 ' + sent + '건');
+    SpreadsheetApp.flush();
   } finally { lock.releaseLock(); }
+  Logger.log('번호 부여 ' + rows.length + '건 완료');
+
+  // 2) 락 밖: 알림톡 발송 (rate-limit 여유)
+  if (!sendAlimtalk) return;
+  var sent = 0;
+  for (var i=0;i<rows.length;i++){
+    var row = rows[i].r;
+    var name = String(sheet.getRange(row, hm[COL.NAME]).getValue()).trim();
+    var phone = String(sheet.getRange(row, hm[COL.PHONE]).getValue()).trim();
+    var res = sendAlimtalk_(name, phone, rows[i].id, rows[i].tok);
+    sheet.getRange(row, hm[COL.SEND]).setValue(res.ok ? ('발송 ' + nowStr_()) : ('실패: ' + res.msg));
+    if (res.ok) sent++;
+    Utilities.sleep(120);
+  }
+  Logger.log('알림톡 발송 ' + sent + '/' + rows.length + '건');
 }
 
 // =====================================================
 //  (1)(2) 폼 제출 트리거
 // =====================================================
 function onFormSubmit(e){
+  var sheet = e.range.getSheet();
+  var row = e.range.getRow();
+  var hm, id, token, name, phone;
+
+  // 1) 락 안: 번호·토큰 부여 + 기록만 (짧게 — 네트워크 없음)
+  //    현장에서 수십 명이 동시 제출해도 락 점유가 0.1초라 번호 누락·체크인 밀림이 없음.
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    var sheet = e.range.getSheet();
     ensureColumns_(sheet);
-    var hm = headerMap_(sheet);
-    var row = e.range.getRow();
-
-    var name  = String(sheet.getRange(row, hm[COL.NAME]).getValue()).trim();
-    var phone = String(sheet.getRange(row, hm[COL.PHONE]).getValue()).trim();
-
-    // 이미 번호가 있으면 재사용, 없으면 새로 부여
-    var id = String(sheet.getRange(row, hm[COL.ID]).getValue()).trim();
+    hm = headerMap_(sheet);
+    name  = String(sheet.getRange(row, hm[COL.NAME]).getValue()).trim();
+    phone = String(sheet.getRange(row, hm[COL.PHONE]).getValue()).trim();
+    id = String(sheet.getRange(row, hm[COL.ID]).getValue()).trim();
     if (!id){ id = nextId_(sheet, hm); sheet.getRange(row, hm[COL.ID]).setValue(id); }
-    var token = String(sheet.getRange(row, hm[COL.TOKEN]).getValue()).trim();
+    token = String(sheet.getRange(row, hm[COL.TOKEN]).getValue()).trim();
     if (!token){ token = randomToken_(); sheet.getRange(row, hm[COL.TOKEN]).setValue(token); }
+    SpreadsheetApp.flush();
+  } catch (err){
+    Logger.log('onFormSubmit(번호부여) 오류: ' + err);
+    try { lock.releaseLock(); } catch(e2){}
+    return;
+  }
+  lock.releaseLock();
 
-    var c = cfg_();
-    var link = buildLink_(c.qrBase, id, token, name);
-    var res = sendAlimtalk_(name, phone, link);
+  // 2) 락 밖: 알림톡 발송(네트워크) + 상태 기록. 실패해도 번호·토큰은 이미 부여됨.
+  try {
+    var res = sendAlimtalk_(name, phone, id, token);
     sheet.getRange(row, hm[COL.SEND]).setValue(res.ok ? ('발송 ' + nowStr_()) : ('실패: ' + res.msg));
   } catch (err){
-    Logger.log('onFormSubmit 오류: ' + err);
-  } finally {
-    lock.releaseLock();
+    Logger.log('onFormSubmit(발송) 오류: ' + err);
   }
 }
 
@@ -173,7 +184,7 @@ function doGet(e){
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+    var sheet = responseSheet_();
     var hm = headerMap_(sheet);
     var last = sheet.getLastRow();
     if (last < 2) return reply_({ status:'invalid', message:'등록되지 않은 QR입니다', id:id }, cb);
@@ -238,11 +249,11 @@ function getPpurioToken_(){
 
 /**
  * 알림톡 1건 발송.
- * ⚠️ 뿌리오 템플릿 변수는 [*1*]~[*8*] 형식입니다. changeWord 의 var1..var8 이 각각 [*1*]..[*8*] 을 채웁니다.
- *    권장 템플릿 본문: "[*1*]님, 아래 링크에서 입장 QR을 확인해 주세요. [*2*]"  → var1=이름, var2=링크 (아래와 일치).
- *    (템플릿에서 [*1*]=성함, [*2*]=링크 순서로 등록하면 코드 수정 불필요.)
+ * 뿌리오 템플릿 변수는 [*1*]~[*8*] 형식. changeWord 의 var1..var8 이 각각 [*1*]..[*8*] 을 채웁니다.
+ * ⭐ 링크 길이(변수 50자) 문제 회피: 템플릿 본문에 고정 URL을 넣고( ...qr.html?[*2*] ),
+ *    [*2*] 에는 "id=..&t=.." 짧은 쿼리만 넣습니다. → var1=성함, var2=쿼리
  */
-function sendAlimtalk_(name, phone, link){
+function sendAlimtalk_(name, phone, id, token){
   var c = cfg_();
   if (!c.ppurioAcct || !c.ppurioKey || !c.sender || !c.template){
     return { ok:false, msg:'뿌리오 설정 미완료(스크립트 속성 확인)' };
@@ -250,33 +261,39 @@ function sendAlimtalk_(name, phone, link){
   var to = String(phone).replace(/[^0-9]/g, '');
   if (!to){ return { ok:false, msg:'전화번호 없음' }; }
 
+  var query = qrQuery_(id, token);                 // [*2*] = id=..&t=..  (짧게)
+  var fullLink = buildLink_(c.qrBase, id, token);  // 문자 대체발송용 전체 URL
+
   try {
-    var token = getPpurioToken_();
+    var accessToken = getPpurioToken_();
     var payload = {
       account: c.ppurioAcct,
-      messageType: 'ALT',                 // 알림톡(텍스트)
-      senderProfile: c.sender,            // 발신프로필키
+      messageType: 'ALT',                 // 알림톡 텍스트(ALT). 이미지형 템플릿이면 'ALI'
+      senderProfile: c.sender,            // 발신프로필
       templateCode: c.template,
-      duplicateFlag: 'Y',
+      duplicateFlag: 'N',                 // 수신번호 중복 제거
       targetCount: 1,
       targets: [{
         to: to,
         name: name,
-        changeWord: { var1: name, var2: link }   // ← 템플릿 변수와 일치시킬 것
+        changeWord: { var1: name, var2: query }   // [*1*]=성함, [*2*]=쿼리(id=..&t=..)
       }],
-      refKey: 'namda-' + nowStamp_(),
+      refKey: ('namda' + Utilities.getUuid().replace(/-/g, '')).substring(0, 32), // 32자 이내 고유값
       isResend: c.smsFallback ? 'Y' : 'N'
     };
     if (c.smsFallback && c.fromNumber){
+      // 알림톡 실패 시 문자 대체발송. URL 포함이라 LMS. 발신번호(PPURIO_FROM)는 뿌리오 사전 등록 필요.
       payload.resend = {
-        from: c.fromNumber.replace(/[^0-9]/g,''),
-        content: name + '님, 입장 QR 링크: ' + link
+        messageType: 'LMS',
+        from: c.fromNumber.replace(/[^0-9]/g, ''),
+        subject: '입장 QR 안내',
+        content: name + '님 입장 QR: ' + fullLink
       };
     }
     var res = UrlFetchApp.fetch(c.ppurioBase + '/v1/kakao', {
       method: 'post',
       contentType: 'application/json;charset=UTF-8',
-      headers: { 'Authorization': 'Bearer ' + token },
+      headers: { 'Authorization': 'Bearer ' + accessToken },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
@@ -295,20 +312,20 @@ function sendAlimtalk_(name, phone, link){
 
 // 발송 1건 시험 (스크립트 속성 세팅 후 본인 번호로 테스트)
 function testSend(){
-  var c = cfg_();
-  var link = buildLink_(c.qrBase, '999', 'testtok0', '테스트');
-  var res = sendAlimtalk_('테스트', '01000000000', link); // ← 본인 번호로 바꿔 실행
+  var res = sendAlimtalk_('테스트', '01000000000', '999', 'testtok0'); // ← 전화번호를 본인 번호로 바꿔 실행
   Logger.log(JSON.stringify(res));
 }
 
 // =====================================================
 //  유틸
 // =====================================================
-function buildLink_(base, id, token, name){
-  var u = String(base).replace(/\/+$/,'');
-  u += '?id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(token);
-  if (name) u += '&n=' + encodeURIComponent(name);
-  return u;
+function buildLink_(base, id, token){
+  return String(base).replace(/\/+$/,'') + '?' + qrQuery_(id, token);
+}
+
+// 알림톡 [*2*] 용 짧은 쿼리 (id=..&t=..). 템플릿의 고정 URL 뒤에 붙습니다.
+function qrQuery_(id, token){
+  return 'id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(token);
 }
 
 function nextId_(sheet, hm){
@@ -335,19 +352,51 @@ function nowStamp_(){
 }
 
 // 머리글 → 열번호(1-based) 매핑
+// - 추가 관리열(번호/토큰/입장여부/입장시각/발송상태): 정확 일치
+// - 이름/전화: 키워드 "포함" 매칭 (폼 질문 제목이 길어도 인식)
 function headerMap_(sheet){
   var lastCol = sheet.getLastColumn();
   var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var map = {};
+  var exact = {};
   for (var i=0;i<headers.length;i++){
     var h = String(headers[i]).trim();
-    if (h) map[h] = i + 1;
+    if (h) exact[h] = i + 1;
   }
+  var map = {};
+  [COL.ID, COL.TOKEN, COL.CHECKED, COL.TIME, COL.SEND].forEach(function(k){
+    if (exact[k]) map[k] = exact[k];
+  });
+  map[COL.NAME]  = findHeaderCol_(headers, NAME_KEYS);
+  map[COL.PHONE] = findHeaderCol_(headers, PHONE_KEYS);
+
   // 필수 열 검증
-  [COL.NAME, COL.ID, COL.TOKEN, COL.CHECKED, COL.TIME].forEach(function(k){
-    if (!map[k]) throw new Error('시트에 "' + k + '" 열이 없습니다. setup() 을 먼저 실행하세요.');
+  [COL.NAME, COL.PHONE, COL.ID, COL.TOKEN, COL.CHECKED, COL.TIME].forEach(function(k){
+    if (!map[k]) throw new Error('시트에서 "' + k + '" 에 해당하는 열을 찾지 못했습니다. '
+      + '(setup() 실행 여부 / 폼 질문 제목 확인 — 이름 열엔 "성함" 또는 "이름", 전화 열엔 "전화/휴대"가 들어가야 함)');
   });
   return map;
+}
+
+// headers 배열에서 keys 중 하나를 "포함"하는 첫 열의 1-based 인덱스 (없으면 0)
+function findHeaderCol_(headers, keys){
+  for (var k=0;k<keys.length;k++){
+    for (var i=0;i<headers.length;i++){
+      if (String(headers[i]).indexOf(keys[k]) !== -1) return i + 1;
+    }
+  }
+  return 0;
+}
+
+// 폼 응답 탭 자동 선택: "이름(성함/이름)" 열이 있는 첫 탭. (응답 탭이 첫 번째가 아니어도 안전)
+function responseSheet_(){
+  var sheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+  for (var s=0;s<sheets.length;s++){
+    var lc = sheets[s].getLastColumn();
+    if (lc < 1) continue;
+    var headers = sheets[s].getRange(1, 1, 1, lc).getValues()[0];
+    if (findHeaderCol_(headers, NAME_KEYS)) return sheets[s];
+  }
+  return sheets[0];
 }
 
 // 없는 관리 열은 오른쪽에 추가
