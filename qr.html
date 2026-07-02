@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>입장 QR · K-퀀텀 얼라이언스 포럼</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root { --navy:#0f2a4a; --blue:#2563eb; --ink:#0f172a; --muted:#64748b; }
+    html, body { margin:0; padding:0; }
+    body {
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+      background:#eef2f7; color:var(--ink);
+      min-height:100vh; min-height:100dvh;
+      display:flex; align-items:flex-start; justify-content:center;
+      padding:22px 16px 40px;
+    }
+    .card {
+      width:100%; max-width:430px; background:#fff; border-radius:24px;
+      box-shadow:0 12px 40px rgba(15,42,74,0.14); overflow:hidden;
+    }
+    .head {
+      background:linear-gradient(135deg,#12315a,#0b1f3a); color:#fff;
+      padding:22px 24px 20px; text-align:center;
+    }
+    .head .badge {
+      display:inline-block; font-size:11px; font-weight:800; letter-spacing:2px;
+      color:#7dd3fc; background:rgba(56,189,248,0.16);
+      padding:5px 12px; border-radius:999px; margin-bottom:12px;
+    }
+    .head h1 { margin:0; font-size:18px; font-weight:800; line-height:1.4; }
+    .head .date { margin-top:8px; font-size:13px; color:#b9cbe4; }
+
+    .body { padding:24px 24px 8px; text-align:center; }
+    .greet { font-size:15px; color:var(--muted); }
+    .name { font-size:30px; font-weight:900; margin:2px 0 2px; }
+    .num { font-size:14px; color:var(--blue); font-weight:800;
+      font-family:ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:1px; }
+
+    .qr-wrap {
+      margin:18px auto 6px; width:min(74vw,300px); height:min(74vw,300px);
+      background:#fff; border:1px solid #e6ebf1; border-radius:18px;
+      display:flex; align-items:center; justify-content:center; padding:14px;
+    }
+    .qr-wrap svg, .qr-wrap img { width:100%; height:100%; display:block; }
+
+    .tip {
+      margin:14px 20px 4px; font-size:13.5px; color:var(--muted); line-height:1.6;
+      background:#f6f8fb; border-radius:14px; padding:14px 16px;
+    }
+    .tip b { color:var(--ink); }
+
+    .foot { padding:16px 24px 26px; text-align:center; font-size:11px; color:#94a3b8; }
+
+    .err {
+      display:none; margin:30px 20px; padding:22px; border-radius:16px;
+      background:#fef2f2; color:#991b1b; font-size:15px; line-height:1.6; font-weight:700;
+      text-align:center;
+    }
+    .err.show { display:block; }
+    .hidden { display:none !important; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <div class="badge">K-QUANTUM ALLIANCE</div>
+      <h1 id="evtTitle">K-퀀텀 얼라이언스 출범 &amp;<br>퀀텀AI금융융합 포럼</h1>
+      <div class="date" id="evtDate">입장용 QR 코드</div>
+    </div>
+
+    <div class="body" id="okBody">
+      <div class="greet">아래 QR을 <b>행사장 입구 스캐너</b>에 보여주세요</div>
+      <div class="name" id="pName">—</div>
+      <div class="num" id="pNum">No. —</div>
+      <div class="qr-wrap"><div id="qrBox"></div></div>
+      <div class="tip">
+        · 입장 시 <b>화면 밝기를 최대로</b> 올려 주세요.<br>
+        · 캡처(스크린샷)해 두면 인터넷 없이도 보여줄 수 있습니다.<br>
+        · <b>본인 확인</b>을 위해 신분증을 함께 준비해 주세요.
+      </div>
+    </div>
+
+    <div class="err" id="errBox"></div>
+
+    <div class="foot">© NAMDA · 본 QR은 발급받은 본인 전용입니다</div>
+  </div>
+
+  <script src="lib/qrcode.js"></script>
+  <script>
+    // QR 페이로드 형식: NAMDA1|번호|토큰  (스캐너가 이 형식만 인식)
+    var QR_TAG = 'NAMDA1';
+
+    function qs(name){ return new URLSearchParams(location.search).get(name) || ''; }
+
+    function fail(msg){
+      document.getElementById('okBody').classList.add('hidden');
+      var e = document.getElementById('errBox');
+      e.innerHTML = msg;
+      e.classList.add('show');
+    }
+
+    (function(){
+      var id = qs('id').trim();
+      var token = qs('t').trim();
+      var name = qs('n').trim();
+
+      // 유효성: 번호(숫자)와 토큰이 있어야 함
+      if (!id || !token || !/^\d{1,6}$/.test(id)) {
+        return fail('QR 정보를 불러오지 못했습니다.<br>알림톡에 온 링크를 다시 눌러 주세요.');
+      }
+
+      document.getElementById('pName').textContent = name ? name + ' 님' : '참가자';
+      document.getElementById('pNum').textContent = 'No. ' + id;
+
+      var payload = QR_TAG + '|' + id + '|' + token;
+
+      try {
+        // typeNumber 0 = 자동, 오류정정 레벨 M (인쇄/화면 스캔에 안정적)
+        var qr = qrcode(0, 'M');
+        qr.addData(payload);
+        qr.make();
+        // SVG 로 렌더 (해상도 독립, 선명)
+        document.getElementById('qrBox').innerHTML = qr.createSvgTag({ scalable:true, margin:0 });
+      } catch (err) {
+        fail('QR 생성 중 문제가 발생했습니다.<br>새로고침 후 다시 시도해 주세요.');
+      }
+    })();
+  </script>
+</body>
+</html>

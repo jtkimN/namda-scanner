@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR 생성기 · NAMDA 체크인</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root { --navy:#0f2a4a; --blue:#2563eb; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+      background:#f1f5f9; color:var(--ink); }
+    header { background:linear-gradient(135deg,#12315a,#0b1f3a); color:#fff; padding:22px 24px; }
+    header h1 { margin:0; font-size:20px; font-weight:900; }
+    header p { margin:6px 0 0; font-size:13px; color:#b9cbe4; }
+    .wrap { max-width:1000px; margin:0 auto; padding:22px 18px 60px; }
+
+    .panel { background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:18px; }
+    .panel h2 { margin:0 0 4px; font-size:16px; font-weight:800; }
+    .panel .desc { margin:0 0 14px; font-size:13px; color:var(--muted); line-height:1.6; }
+    label { display:block; font-size:13px; font-weight:700; margin:12px 0 6px; color:#334155; }
+    input, textarea { width:100%; border:1px solid #cbd5e1; border-radius:10px; padding:10px 12px;
+      font-size:14px; font-family:inherit; }
+    textarea { height:150px; resize:vertical; font-family:ui-monospace,Menlo,monospace; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    button { cursor:pointer; border:0; border-radius:10px; font-weight:800; font-size:14px;
+      padding:11px 18px; background:var(--navy); color:#fff; }
+    button.sec { background:#e2e8f0; color:#0f172a; }
+    .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+    .msg { margin-top:10px; font-size:13px; font-weight:700; }
+    .msg.err { color:#b91c1c; } .msg.ok { color:#15803d; }
+
+    /* 단일 미리보기 */
+    .single-out { display:flex; gap:20px; align-items:center; margin-top:14px; flex-wrap:wrap; }
+    .single-qr { width:200px; height:200px; border:1px solid var(--line); border-radius:12px; padding:10px; background:#fff; }
+    .single-qr svg { width:100%; height:100%; display:block; }
+    .single-info { font-size:14px; line-height:1.9; }
+    .single-info b { font-size:18px; }
+    .link-box { margin-top:6px; font-size:12px; color:var(--blue); word-break:break-all;
+      font-family:ui-monospace,monospace; background:#f8fafc; padding:8px 10px; border-radius:8px; }
+
+    /* 인쇄 카드 그리드 */
+    #cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-top:16px; }
+    .card { border:1px solid #cbd5e1; border-radius:12px; padding:12px; text-align:center; background:#fff;
+      break-inside:avoid; page-break-inside:avoid; }
+    .card .cqr { width:100%; aspect-ratio:1/1; }
+    .card .cqr svg { width:100%; height:100%; display:block; }
+    .card .cname { font-size:16px; font-weight:900; margin-top:8px; }
+    .card .cnum { font-size:12px; color:var(--blue); font-weight:800; font-family:ui-monospace,monospace; }
+    .card .cevt { font-size:9px; color:#94a3b8; margin-top:4px; }
+
+    .count { font-size:13px; color:var(--muted); margin-top:12px; }
+
+    @media print {
+      header, .panel.no-print, .count, .btns { display:none !important; }
+      body { background:#fff; }
+      .wrap { padding:0; max-width:none; }
+      #cards { grid-template-columns:repeat(3, 1fr); gap:6px; }
+      .card { border:1px solid #cbd5e1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>QR 생성기 · NAMDA 셀프 체크인</h1>
+    <p>개인 QR 발급/재발급 · 인쇄용 명단 카드 생성 (오프라인 · 서버 불필요)</p>
+  </header>
+
+  <div class="wrap">
+
+    <!-- 공통 설정 -->
+    <div class="panel no-print">
+      <h2>공통 설정</h2>
+      <p class="desc">개인 QR 링크(알림톡/문자에 넣는 주소)의 기본 주소입니다. GitHub Pages 배포 주소로 맞춰 두세요.</p>
+      <label>개인 QR 페이지 기본 URL</label>
+      <input id="baseUrl" value="https://jtkimN.github.io/namda-scanner/qr.html" spellcheck="false">
+    </div>
+
+    <!-- 단일 발급 -->
+    <div class="panel no-print">
+      <h2>① 단일 발급 / 재발급</h2>
+      <p class="desc">참가자 한 명의 번호·토큰(·이름)을 입력하면 QR과 개인 링크를 만듭니다.</p>
+      <div class="row">
+        <div><label>번호 (예: 005)</label><input id="sNum" inputmode="numeric" placeholder="005"></div>
+        <div><label>토큰</label><input id="sTok" placeholder="a1b2c3d4" spellcheck="false"></div>
+      </div>
+      <label>이름 (선택)</label>
+      <input id="sName" placeholder="홍길동">
+      <div class="btns">
+        <button id="sMake">QR 만들기</button>
+        <button class="sec" id="sDl">PNG 저장</button>
+      </div>
+      <div class="msg" id="sMsg"></div>
+      <div class="single-out" id="sOut" style="display:none;">
+        <div class="single-qr" id="sQr"></div>
+        <div class="single-info">
+          <div id="sInfoName"></div>
+          <div id="sInfoNum"></div>
+          <div>개인 링크(알림톡/문자용):</div>
+          <div class="link-box" id="sLink"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 일괄 인쇄 -->
+    <div class="panel no-print">
+      <h2>② 일괄 · 인쇄용 명단 카드</h2>
+      <p class="desc">
+        시트에서 <b>번호, 이름, 토큰</b> 3개 열을 복사해 붙여넣으세요. (쉼표 또는 탭 구분, 한 줄에 한 명)<br>
+        머리글 줄(번호,이름,토큰)이 있으면 자동으로 건너뜁니다. 예:
+        <br><code>005,홍길동,a1b2c3d4</code>
+      </p>
+      <label>명단 붙여넣기</label>
+      <textarea id="bulk" spellcheck="false" placeholder="001,김철수,11aa22bb&#10;002,이영희,33cc44dd&#10;003,박민수,55ee66ff"></textarea>
+      <div class="btns">
+        <button id="bMake">카드 생성</button>
+        <button class="sec" id="bPrint">🖨️ 인쇄</button>
+        <button class="sec" id="bLinks">개인 링크 목록 복사</button>
+      </div>
+      <div class="msg" id="bMsg"></div>
+      <div class="count" id="bCount"></div>
+    </div>
+
+    <div id="cards"></div>
+  </div>
+
+  <script src="lib/qrcode.js"></script>
+  <script>
+    const QR_TAG = 'NAMDA1';
+    const EVT = 'K-퀀텀 얼라이언스 포럼';
+    const $ = (id)=>document.getElementById(id);
+
+    function payloadOf(num, tok){ return QR_TAG + '|' + num + '|' + tok; }
+    function linkOf(num, tok, name){
+      let u = $('baseUrl').value.trim().replace(/\/+$/,'');
+      u += '?id=' + encodeURIComponent(num) + '&t=' + encodeURIComponent(tok);
+      if (name) u += '&n=' + encodeURIComponent(name);
+      return u;
+    }
+    function svgOf(payload){
+      const qr = qrcode(0,'M'); qr.addData(payload); qr.make();
+      return qr.createSvgTag({ scalable:true, margin:0 });
+    }
+    function pngOf(payload, cell){
+      const qr = qrcode(0,'M'); qr.addData(payload); qr.make();
+      return qr.createDataURL(cell||8, 2); // gif data url
+    }
+    function normNum(v){ v = String(v).trim(); return /^\d+$/.test(v) ? v.padStart(3,'0') : v; }
+
+    // ---- 단일 ----
+    $('sMake').addEventListener('click', ()=>{
+      const num = normNum($('sNum').value);
+      const tok = $('sTok').value.trim();
+      const name = $('sName').value.trim();
+      const m = $('sMsg');
+      if (!/^\d{1,6}$/.test(num) || !tok){ m.className='msg err'; m.textContent='번호(숫자)와 토큰을 입력하세요.'; return; }
+      m.textContent='';
+      $('sQr').innerHTML = svgOf(payloadOf(num, tok));
+      $('sInfoName').innerHTML = name ? ('<b>'+name+'</b> 님') : '<b>참가자</b>';
+      $('sInfoNum').textContent = 'No. ' + num;
+      $('sLink').textContent = linkOf(num, tok, name);
+      $('sOut').style.display='flex';
+    });
+    $('sDl').addEventListener('click', ()=>{
+      const num = normNum($('sNum').value); const tok = $('sTok').value.trim();
+      if (!/^\d{1,6}$/.test(num) || !tok){ const m=$('sMsg'); m.className='msg err'; m.textContent='먼저 번호·토큰을 입력하세요.'; return; }
+      const a = document.createElement('a');
+      a.href = pngOf(payloadOf(num, tok), 10);
+      a.download = 'QR_' + num + '.gif';
+      a.click();
+    });
+
+    // ---- 일괄 ----
+    function parseBulk(text){
+      const rows = [];
+      const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+      for (let i=0;i<lines.length;i++){
+        const cols = lines[i].split(/\t|,/).map(c=>c.trim());
+        if (cols.length < 3) continue;
+        // 머리글 감지
+        if (i===0 && /번호|이름|토큰|name|token|no/i.test(lines[i]) && !/^\d/.test(cols[0])) continue;
+        const num = normNum(cols[0]), name = cols[1], tok = cols[2];
+        if (!/^\d{1,6}$/.test(num) || !tok) continue;
+        rows.push({ num, name, tok });
+      }
+      return rows;
+    }
+
+    let lastRows = [];
+    $('bMake').addEventListener('click', ()=>{
+      const rows = parseBulk($('bulk').value);
+      lastRows = rows;
+      const m = $('bMsg');
+      if (!rows.length){ m.className='msg err'; m.textContent='유효한 줄이 없습니다. 형식(번호,이름,토큰)을 확인하세요.'; $('cards').innerHTML=''; $('bCount').textContent=''; return; }
+      m.className='msg ok'; m.textContent='카드 생성 완료. [인쇄]로 출력하세요.';
+      const html = rows.map(r=>(
+        '<div class="card">' +
+          '<div class="cqr">' + svgOf(payloadOf(r.num, r.tok)) + '</div>' +
+          '<div class="cname">' + escapeHtml(r.name||'참가자') + '</div>' +
+          '<div class="cnum">No. ' + r.num + '</div>' +
+          '<div class="cevt">' + EVT + '</div>' +
+        '</div>'
+      )).join('');
+      $('cards').innerHTML = html;
+      $('bCount').textContent = rows.length + '명 생성됨';
+    });
+    $('bPrint').addEventListener('click', ()=>{ if(!lastRows.length){ alert('먼저 카드를 생성하세요.'); return; } window.print(); });
+    $('bLinks').addEventListener('click', async ()=>{
+      if(!lastRows.length){ alert('먼저 카드를 생성하세요.'); return; }
+      const txt = lastRows.map(r=> r.num + '\t' + (r.name||'') + '\t' + linkOf(r.num, r.tok, r.name)).join('\n');
+      try { await navigator.clipboard.writeText(txt); $('bMsg').className='msg ok'; $('bMsg').textContent='개인 링크 목록을 복사했습니다.'; }
+      catch(e){ prompt('아래를 복사하세요:', txt); }
+    });
+
+    function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+  </script>
+</body>
+</html>
