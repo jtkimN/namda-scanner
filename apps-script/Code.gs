@@ -41,7 +41,7 @@ function cfg_(){
     fromNumber:   p.getProperty('PPURIO_FROM') || '',        // (선택) 실패시 문자 대체 발신번호
     staffKey:     p.getProperty('STAFF_KEY') || '',
     qrBase:       p.getProperty('QR_BASE') || 'https://jtkimN.github.io/namda-scanner/qr.html',
-    eventName:    p.getProperty('EVENT_NAME') || 'K-퀀텀 얼라이언스 포럼',
+    eventName:    p.getProperty('EVENT_NAME') || '보이스피싱 방지 인증기술 세미나 및 시연회',
     smsFallback:  (p.getProperty('SMS_FALLBACK') || 'N') === 'Y'
   };
 }
@@ -238,9 +238,9 @@ function getPpurioToken_(){
 
 /**
  * 알림톡 1건 발송.
- * ⚠️ changeWord 의 키(var1/var2 …)는 "뿌리오에 등록한 템플릿의 변수 표기"와 반드시 일치해야 합니다.
- *    (템플릿 본문 예: "#{var1}님, 아래 링크에서 입장 QR을 확인해 주세요. #{var2}")
- *    등록한 변수명이 #{성함}/#{링크} 라면 아래 changeWord 키도 성함/링크 로 바꾸세요.
+ * ⚠️ 뿌리오 템플릿 변수는 [*1*]~[*8*] 형식입니다. changeWord 의 var1..var8 이 각각 [*1*]..[*8*] 을 채웁니다.
+ *    권장 템플릿 본문: "[*1*]님, 아래 링크에서 입장 QR을 확인해 주세요. [*2*]"  → var1=이름, var2=링크 (아래와 일치).
+ *    (템플릿에서 [*1*]=성함, [*2*]=링크 순서로 등록하면 코드 수정 불필요.)
  */
 function sendAlimtalk_(name, phone, link){
   var c = cfg_();
