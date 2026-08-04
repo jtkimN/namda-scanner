@@ -182,8 +182,13 @@ function apiUrl(params){
   return API + (API.indexOf('?') >= 0 ? '&' : '?') + q.join('&');
 }
 
+// 실패했을 때 "무엇 때문에" 실패했는지 화면에 남긴다.
+// 참석자 기기(특히 휴대폰)에서는 개발자 도구를 열 수 없어, 이게 없으면 원인을 알 길이 없다.
+var LAST_ERR = '';
+function note(s){ LAST_ERR = String(s).slice(0, 120); }
+
 function api(params, done){
-  if (!window.fetch){ jsonp(params, done); return; }
+  if (!window.fetch){ note('fetch 미지원 → 옛 방식'); jsonp(params, done); return; }
 
   var url = apiUrl(params);
   var ctrl = window.AbortController ? new AbortController() : null;
@@ -202,19 +207,24 @@ function api(params, done){
       cache: 'no-store',
       signal: ctrl ? ctrl.signal : undefined
     })
-    .then(function(r){ return r.text(); })
+    .then(function(r){
+      note('HTTP ' + r.status + (r.redirected ? ' (리다이렉트됨)' : ''));
+      return r.text();
+    })
     .then(function(t){
       var d = null;
-      try { d = JSON.parse(t); } catch(e){}
+      try { d = JSON.parse(t); } catch(e){ note('응답이 JSON 아님: ' + String(t).slice(0, 60)); }
       if (d && d.status) finish(d);
       else finish({ status: 'neterr' });
     })
-    .catch(function(){
+    .catch(function(e){
       // fetch 가 막힌 환경 → 예전 방식으로 한 번 더
+      note('fetch 실패: ' + String(e && e.message ? e.message : e).slice(0, 70));
       clearTimeout(timer);
       if (!fired) jsonp(params, function(res){ finish(res); });
     });
   } catch(e){
+    note('fetch 예외: ' + String(e && e.message ? e.message : e).slice(0, 70));
     clearTimeout(timer);
     jsonp(params, done);
   }
@@ -356,7 +366,9 @@ function showWho(){
 function handle(res, me){
   if (!res || res.status === 'neterr'){
     result('err', '연결 실패',
-      '인터넷 연결을 확인한 뒤<br>아래 버튼을 눌러 주세요.', '', '', '', '');
+      '인터넷 연결을 확인한 뒤<br>아래 버튼을 눌러 주세요.', '', '', '',
+      LAST_ERR ? ('<span style="font-size:11px;color:#94a3b8;word-break:break-all">'
+                  + esc(LAST_ERR) + '</span>') : '');
     $('btnRetry').classList.remove('hidden');
     showWho();
     return;
