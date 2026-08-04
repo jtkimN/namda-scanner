@@ -33,6 +33,7 @@
     display:flex;align-items:center;justify-content:center;}
   .qr-box svg{width:100%;height:100%;display:block;}
   .qr-cap{margin-top:16px;font-size:clamp(15px,1.5vw,20px);font-weight:800;color:var(--navy);}
+  .qr-cap .today{display:block;margin-top:7px;color:var(--blue);font-size:.9em;letter-spacing:-.3px;}
 
   /* 안내 */
   .info{max-width:560px;}
@@ -86,7 +87,13 @@
     .times .row{font-size:14pt;padding:3.4mm 7mm;}
     .times .row.on{background:#fff;}
     .times .row.on .day::after{content:'';}
-    .status,.recent,.warn,footer,.qr-cap{display:none !important;}
+    .status,.recent,.warn,footer{display:none !important;}
+    /* ⭐ 종이에는 반드시 날짜가 찍혀야 한다.
+       QR 이 매일 바뀌므로, 날짜가 없으면 어제 종이와 구분이 안 되어
+       옛 종이를 붙였을 때 참석자 전원이 실패한다. */
+    .qr-cap{display:block !important;font-size:13pt;margin-top:5mm;}
+    .qr-cap .today{display:block;font-size:16pt;font-weight:900;margin-top:2mm;
+      border:1.5pt solid var(--navy);border-radius:3mm;padding:2mm 4mm;}
   }
 </style>
 </head>
@@ -257,8 +264,10 @@ function refresh(){
       drawQR(CHECKIN);                                   // 매일 변경 기능이 꺼져 있으면 고정 주소
     } else if (res.dayCode){
       drawQR(CHECKIN + '?qc=' + encodeURIComponent(res.dayCode));
-      document.getElementById('qrCap').textContent =
-        '휴대폰 카메라로 비춰 주세요 · ' + res.date + ' 전용';
+      // 날짜는 종이에도 반드시 남는다 (인쇄 CSS 에서 .today 를 크게 보여준다)
+      document.getElementById('qrCap').innerHTML =
+        '휴대폰 카메라로 비춰 주세요'
+        + '<span class="today">' + esc(res.date) + ' (' + esc(res.dow) + ') 전용 QR</span>';
     } else {
       qrNotice('이 화면은 <b>관리자 키</b>로 열어야 합니다.<br><br>'
              + '주소 뒤에 <b>?key=관리자키</b> 를 붙여 주세요.<br>'
