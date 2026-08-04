@@ -165,9 +165,9 @@ function api(params, done){
   var name = '__eduCb' + (++seq) + '_' + Date.now();
   var s = document.createElement('script');
   var fired = false;
-  // 서버 락 대기(최대 8초) + 처리 시간보다 넉넉해야 한다.
-  // 이보다 짧으면 "서버는 기록했는데 화면은 실패"로 보이는 창이 생긴다.
-  var timer = setTimeout(function(){ finish({ status:'neterr' }); }, 30000);
+  // 개별 요청의 대기 상한. 전체 포기 시각(GIVE_UP)보다 조금 길게 두어,
+  // 늦게라도 도착한 응답을 버리지 않는다.
+  var timer = setTimeout(function(){ finish({ status:'neterr' }); }, 25000);
 
   function finish(data){
     if (fired) return;
@@ -192,25 +192,45 @@ function api(params, done){
    교육 시작 직후에는 여러 명이 동시에 스캔해 서버가 잠깐 밀린다(busy).
    여기서 바로 빨간 오류를 띄우면 어르신들이 당황해 계속 다시 누르게 되므로,
    조용히 몇 번 다시 시도한 뒤에도 안 되면 그때 오류를 보여준다. */
-var RETRY_DELAYS = [1500, 3000, 6000];
-function apiRetry(params, done, attempt){
-  attempt = attempt || 0;
-  api(params, function(res){
-    var again = (!res || res.status === 'neterr' || res.status === 'busy');
-    if (again && attempt < RETRY_DELAYS.length){
-      // 한 번 실패했다고 바로 겁주지 않는다. 두 번째부터만 상황을 알린다.
-      if (attempt >= 1){
-        $('loadMsg').innerHTML = (res && res.status === 'busy')
-          ? '사람이 몰려 잠시 기다리는 중입니다…<br>자리에 앉아 계시면 자동으로 처리됩니다.'
-          : '연결이 느립니다. 다시 시도하는 중입니다…<br>잠시만 기다려 주세요.';
-      }
-      show('vLoad');
-      var wait = RETRY_DELAYS[attempt] + Math.floor(Math.random() * 700);
-      setTimeout(function(){ apiRetry(params, done, attempt + 1); }, wait);
-      return;
-    }
+/* 구글 서버는 한동안 쉬었다가 처음 부르면 20초 넘게 끄는 일이 있는데(콜드 스타트),
+   같은 순간에 여러 번 부르면 오히려 1~2초에 답한다. 실측으로 확인한 성질이다.
+   그래서 "실패하면 다시 보내는" 방식이 아니라,
+   답이 늦으면 답을 기다리면서 한 번 더 보내고 먼저 오는 것을 쓴다.
+   (서버는 같은 사람·같은 날을 한 줄로만 기록하므로 두 번 보내도 안전하다) */
+var HEDGE_AT = [4000, 9000];   // 4초·9초 뒤에도 답이 없으면 한 번씩 더 보낸다
+var GIVE_UP  = 22000;          // 이때까지 아무 답도 없으면 실패로 알린다
+
+function apiRetry(params, done){
+  var settled = false, timers = [], lastBad = null, sent = 0;
+
+  function finish(res){
+    if (settled) return;
+    settled = true;
+    for (var i = 0; i < timers.length; i++) clearTimeout(timers[i]);
     done(res);
-  });
+  }
+
+  function fire(){
+    if (settled) return;
+    sent++;
+    if (sent >= 2){
+      $('loadMsg').innerHTML = '조금 오래 걸리고 있습니다…<br>화면을 그대로 두시면 자동으로 처리됩니다.';
+      show('vLoad');
+    }
+    api(params, function(res){
+      if (settled) return;
+      // 서버가 제대로 답했으면 그걸로 끝. (busy 는 "지금 밀린다"는 뜻이라 다른 시도를 기다린다)
+      if (res && res.status && res.status !== 'neterr' && res.status !== 'busy'){ finish(res); return; }
+      if (res) lastBad = res;
+      // 실패한 시도는 그냥 버린다 — 이미 예약된 다음 시도가 처리한다
+    });
+  }
+
+  fire();
+  for (var k = 0; k < HEDGE_AT.length; k++){
+    (function(){ timers.push(setTimeout(fire, HEDGE_AT[k])); })();
+  }
+  timers.push(setTimeout(function(){ finish(lastBad || { status: 'neterr' }); }, GIVE_UP));
 }
 
 /* ---------- 화면 전환 ---------- */
