@@ -256,7 +256,7 @@ function refresh(){
     if (!res.qrDaily){
       drawQR(CHECKIN);                                   // 매일 변경 기능이 꺼져 있으면 고정 주소
     } else if (res.dayCode){
-      drawQR(CHECKIN + '?c=' + encodeURIComponent(res.dayCode));
+      drawQR(CHECKIN + '?qc=' + encodeURIComponent(res.dayCode));
       document.getElementById('qrCap').textContent =
         '휴대폰 카메라로 비춰 주세요 · ' + res.date + ' 전용';
     } else {
