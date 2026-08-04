@@ -198,7 +198,12 @@ function apiRetry(params, done, attempt){
   api(params, function(res){
     var again = (!res || res.status === 'neterr' || res.status === 'busy');
     if (again && attempt < RETRY_DELAYS.length){
-      $('loadMsg').textContent = '사람이 몰려 잠시 기다리는 중입니다…\n자리에 앉아 계시면 자동으로 처리됩니다.';
+      // 한 번 실패했다고 바로 겁주지 않는다. 두 번째부터만 상황을 알린다.
+      if (attempt >= 1){
+        $('loadMsg').innerHTML = (res && res.status === 'busy')
+          ? '사람이 몰려 잠시 기다리는 중입니다…<br>자리에 앉아 계시면 자동으로 처리됩니다.'
+          : '연결이 느립니다. 다시 시도하는 중입니다…<br>잠시만 기다려 주세요.';
+      }
       show('vLoad');
       var wait = RETRY_DELAYS[attempt] + Math.floor(Math.random() * 700);
       setTimeout(function(){ apiRetry(params, done, attempt + 1); }, wait);
