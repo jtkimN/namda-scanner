@@ -243,7 +243,8 @@ function api(params, done){
   s.onerror = function(){ finish(null); };
   var q = [];
   for (var k in params){ if (params[k]) q.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k])); }
-  q.push('callback=' + name); q.push('_=' + Date.now());
+  // 구글 계정이 여러 개 로그인된 브라우저 대응 (edu.html 의 같은 주석 참고)
+  q.push('callback=' + name); q.push('authuser=0'); q.push('_=' + Date.now());
   s.src = API + (API.indexOf('?') >= 0 ? '&' : '?') + q.join('&');
   document.head.appendChild(s);
 }
@@ -301,6 +302,14 @@ function refresh(attempt){
       }
       st.className = 'status shut';
       st.textContent = '⚠ 서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.';
+      // ⚠️ 여기서 QR 자리를 그대로 두면 "불러오는 중…" 인 채로 영원히 멈춘 것처럼 보인다.
+      //    무엇이 잘못됐는지 QR 자리에도 반드시 알린다.
+      if (!curQR){
+        qrNotice('서버에 연결하지 못했습니다.<br><br>'
+               + '<span style="font-size:13px;font-weight:600;color:#64748b">'
+               + '인터넷 연결을 확인한 뒤 <b>F5</b> 로 새로고침해 주세요.<br>'
+               + '계속 안 되면 담당자에게 알려 주세요.</span>', '#b91c1c');
+      }
       return;
     }
 

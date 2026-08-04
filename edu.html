@@ -189,6 +189,11 @@ function api(params, done){
   var q = [];
   for (var k in params){ if (params[k] !== undefined && params[k] !== null) q.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k])); }
   q.push('callback=' + name);
+  // ⚠️ 구글 계정이 여러 개 로그인된 브라우저에서는 구글이 엉뚱한 계정으로 해석해
+  //    "현재 파일을 열 수 없습니다" 로 요청이 통째로 막힌다(실사용에서 확인).
+  //    authuser=0 을 명시하면 첫 번째 계정 기준으로 고정되어 정상 동작한다.
+  //    로그인하지 않은 브라우저에도 아무 영향이 없다(확인함).
+  q.push('authuser=0');
   q.push('_=' + Date.now());
   s.src = API + (API.indexOf('?') >= 0 ? '&' : '?') + q.join('&');
   document.head.appendChild(s);
