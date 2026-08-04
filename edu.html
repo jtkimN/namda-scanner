@@ -185,7 +185,7 @@ function apiUrl(params){
 // 실패했을 때 "무엇 때문에" 실패했는지 화면에 남긴다.
 // 참석자 기기(특히 휴대폰)에서는 개발자 도구를 열 수 없어, 이게 없으면 원인을 알 길이 없다.
 var LAST_ERR = '';
-function note(s){ LAST_ERR = String(s).slice(0, 120); }
+function note(s){ LAST_ERR = String(s).slice(0, 260); }
 
 function api(params, done){
   if (!window.fetch){ note('fetch 미지원 → 옛 방식'); jsonp(params, done); return; }
@@ -208,12 +208,21 @@ function api(params, done){
       signal: ctrl ? ctrl.signal : undefined
     })
     .then(function(r){
-      note('HTTP ' + r.status + (r.redirected ? ' (리다이렉트됨)' : ''));
+      // 최종적으로 어느 주소에서 응답이 왔는지가 원인 판별의 핵심이다.
+      //  · script.googleusercontent.com → 정상 경로
+      //  · accounts.google.com          → 로그인을 요구당함
+      //  · drive.google.com             → 권한 거부
+      note('HTTP ' + r.status + ' ← ' + String(r.url || '').replace(/^https?:\/\//, '').slice(0, 45));
       return r.text();
     })
     .then(function(t){
       var d = null;
-      try { d = JSON.parse(t); } catch(e){ note('응답이 JSON 아님: ' + String(t).slice(0, 60)); }
+      try { d = JSON.parse(t); }
+      catch(e){
+        var head = String(t).replace(/\s+/g, ' ').slice(0, 150);
+        var title = (String(t).match(/<title[^>]*>([^<]{0,60})/i) || [])[1] || '';
+        note(LAST_ERR + ' | ' + (title ? ('제목:' + title + ' ') : '') + head);
+      }
       if (d && d.status) finish(d);
       else finish({ status: 'neterr' });
     })
