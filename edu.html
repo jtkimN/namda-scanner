@@ -149,6 +149,11 @@ function save(o){
 function wipe(){
   try { localStorage.removeItem(KEY); } catch(e){}
 }
+// QR 에 실려 온 "오늘의 코드". 저장하지 않는다 — 매일 바뀌므로 매번 QR 에서 읽어야 한다.
+function dayCode(){
+  try { return (new URLSearchParams(location.search).get('c') || '').trim(); } catch(e){ return ''; }
+}
+
 function deviceId(){
   var k = 'namda_edu_dev', v = null;
   try { v = localStorage.getItem(k); } catch(e){}
@@ -318,6 +323,14 @@ function handle(res, me){
     return;
   }
 
+  if (res.status === 'badcode'){
+    // 어제 QR 사진 / 저장해 둔 링크로 들어온 경우 — 다시 시도해도 소용없으므로 버튼을 감춘다
+    result('no', 'QR을 다시 찍어 주세요', esc(res.message), '', '', '', esc(res.hint));
+    $('btnRetry').classList.add('hidden');
+    showWho();
+    return;
+  }
+
   if (res.status === 'closed'){
     result('no', '지금은 입장 시간이 아닙니다', esc(res.message),
       '', '', '',
@@ -413,7 +426,7 @@ function submitJoin(){
   $('btnJoin').disabled = true;
   $('loadMsg').textContent = '입장을 확인하고 있습니다…';
   show('vLoad');
-  apiRetry({ mode:'join', name:name, phone:digits, dev:deviceId() }, function(res){
+  apiRetry({ mode:'join', name:name, phone:digits, dev:deviceId(), c:dayCode() }, function(res){
     $('btnJoin').disabled = false;
     handle(res, null);
   });
@@ -426,7 +439,7 @@ function start(){
 
   if (me && me.mid && me.tk){
     $('loadMsg').textContent = (me.name ? me.name + ' 님, ' : '') + '입장을 확인하고 있습니다…';
-    apiRetry({ mode:'checkin', mid:me.mid, tk:me.tk, dev:deviceId() }, function(res){ handle(res, me); });
+    apiRetry({ mode:'checkin', mid:me.mid, tk:me.tk, dev:deviceId(), c:dayCode() }, function(res){ handle(res, me); });
   } else {
     $('loadMsg').textContent = '잠시만 기다려 주세요…';
     apiRetry({ mode:'status' }, function(res){

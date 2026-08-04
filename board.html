@@ -148,19 +148,30 @@ function esc(s){
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-/* ---------- QR 그리기 ---------- */
-(function(){
+/* ---------- QR 그리기 ----------
+   QR 을 매일 바꾸는 기능이 켜져 있으면, 주소 뒤에 "오늘의 코드"가 붙는다.
+   그 코드는 관리자 키로 열었을 때만 서버가 내려주므로,
+   이 화면을 키 없이 열면 QR 을 만들 수 없다(그게 이 기능의 핵심이다). */
+var curQR = '';
+function drawQR(url){
+  if (url === curQR) return;          // 같은 값이면 다시 그리지 않는다
+  curQR = url;
   try{
-    var qr = qrcode(0, 'M');           // 오류정정 M — 인쇄/화면 스캔에 안정적
-    qr.addData(CHECKIN);
+    var qr = qrcode(0, 'M');          // 오류정정 M — 화면·인쇄 스캔에 안정적
+    qr.addData(url);
     qr.make();
     document.getElementById('qrBox').innerHTML = qr.createSvgTag({ scalable:true, margin:0 });
   }catch(e){
-    document.getElementById('qrBox').innerHTML =
-      '<div style="font-size:15px;color:#b91c1c;font-weight:700;padding:20px;line-height:1.6">'
-      + 'QR을 만들지 못했습니다.<br>lib/qrcode.js 가 같은 폴더에 있는지 확인해 주세요.</div>';
+    qrNotice('QR을 만들지 못했습니다.<br>lib/qrcode.js 가 같은 위치에 있는지 확인해 주세요.', '#b91c1c');
   }
-})();
+}
+function qrNotice(html, color){
+  curQR = '';
+  document.getElementById('qrBox').innerHTML =
+    '<div style="font-size:15px;color:' + (color || '#64748b') + ';font-weight:700;padding:22px;line-height:1.7;text-align:center">'
+    + html + '</div>';
+}
+qrNotice('불러오는 중…');
 
 /* ---------- 서버 호출 (JSONP) ---------- */
 var seq = 0;
@@ -239,6 +250,19 @@ function refresh(){
       var iso = String(res.serverTime).replace(' ', 'T') + '+09:00';
       var sv = new Date(iso);
       if (!isNaN(sv.getTime())){ offsetMs = sv.getTime() - Date.now(); haveServerTime = true; tick(); }
+    }
+
+    // 오늘의 QR
+    if (!res.qrDaily){
+      drawQR(CHECKIN);                                   // 매일 변경 기능이 꺼져 있으면 고정 주소
+    } else if (res.dayCode){
+      drawQR(CHECKIN + '?c=' + encodeURIComponent(res.dayCode));
+      document.getElementById('qrCap').textContent =
+        '휴대폰 카메라로 비춰 주세요 · ' + res.date + ' 전용';
+    } else {
+      qrNotice('이 화면은 <b>관리자 키</b>로 열어야 합니다.<br><br>'
+             + '주소 뒤에 <b>?key=관리자키</b> 를 붙여 주세요.<br>'
+             + '<span style="font-size:13px;font-weight:600">(시트 메뉴 → 교육 출석 → 관리자 키 확인)</span>', '#b45309');
     }
 
     renderTimes(res.scheduleList, res.dow);
