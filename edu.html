@@ -165,9 +165,64 @@ function deviceId(){
   return v.slice(0, 24);
 }
 
-/* ---------- 서버 호출 (JSONP — CORS 문제 회피) ---------- */
-var seq = 0;
+/* ---------- 서버 호출 ----------
+   ⭐ 기본은 fetch + credentials:'omit'.
+      이렇게 하면 구글 로그인 쿠키를 아예 보내지 않는다.
+      쿠키가 붙으면 "구글 계정이 여러 개 로그인된 기기"에서 구글이 엉뚱한 계정으로 해석해
+      요청이 통째로 막힌다(실사용에서 확인 — 시트엔 기록되는데 화면은 연결 실패).
+      아주 오래된 기기를 위해 실패하면 예전 방식(JSONP)으로 한 번 더 시도한다. */
+function apiUrl(params){
+  var q = [];
+  for (var k in params){
+    if (params[k] !== undefined && params[k] !== null && params[k] !== '')
+      q.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+  }
+  q.push('authuser=0');
+  q.push('_=' + Date.now());
+  return API + (API.indexOf('?') >= 0 ? '&' : '?') + q.join('&');
+}
+
 function api(params, done){
+  if (!window.fetch){ jsonp(params, done); return; }
+
+  var url = apiUrl(params);
+  var ctrl = window.AbortController ? new AbortController() : null;
+  var fired = false;
+  var timer = setTimeout(function(){ if (ctrl) { try { ctrl.abort(); } catch(e){} } }, 25000);
+  var finish = function(res){
+    if (fired) return;
+    fired = true;
+    clearTimeout(timer);
+    done(res);
+  };
+
+  try {
+    fetch(url, {
+      credentials: 'omit',      // ← 핵심. 구글 계정 쿠키를 보내지 않는다
+      cache: 'no-store',
+      signal: ctrl ? ctrl.signal : undefined
+    })
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var d = null;
+      try { d = JSON.parse(t); } catch(e){}
+      if (d && d.status) finish(d);
+      else finish({ status: 'neterr' });
+    })
+    .catch(function(){
+      // fetch 가 막힌 환경 → 예전 방식으로 한 번 더
+      clearTimeout(timer);
+      if (!fired) jsonp(params, function(res){ finish(res); });
+    });
+  } catch(e){
+    clearTimeout(timer);
+    jsonp(params, done);
+  }
+}
+
+/* ---------- 예전 방식 (JSONP) — fetch 를 못 쓰는 기기용 폴백 ---------- */
+var seq = 0;
+function jsonp(params, done){
   var name = '__eduCb' + (++seq) + '_' + Date.now();
   var s = document.createElement('script');
   var fired = false;

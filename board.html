@@ -226,9 +226,37 @@ function askKey(msg){
   setTimeout(function(){ try { document.getElementById('keyIn').focus(); } catch(e){} }, 100);
 }
 
-/* ---------- 서버 호출 (JSONP) ---------- */
-var seq = 0;
+/* ---------- 서버 호출 ----------
+   ⭐ fetch + credentials:'omit' — 구글 로그인 쿠키를 보내지 않는다.
+      쿠키가 붙으면 계정이 여러 개인 기기에서 구글이 요청을 막아버린다(실사용에서 확인).
+      fetch 를 못 쓰는 환경이면 예전 방식(JSONP)으로 폴백. */
+function apiUrl(params){
+  var q = [];
+  for (var k in params){
+    if (params[k]) q.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+  }
+  q.push('authuser=0');
+  q.push('_=' + Date.now());
+  return API + (API.indexOf('?') >= 0 ? '&' : '?') + q.join('&');
+}
+
 function api(params, done){
+  if (!window.fetch){ jsonp(params, done); return; }
+  var ctrl = window.AbortController ? new AbortController() : null;
+  var fired = false;
+  var timer = setTimeout(function(){ if (ctrl) { try { ctrl.abort(); } catch(e){} } }, 20000);
+  var finish = function(d){ if (fired) return; fired = true; clearTimeout(timer); done(d); };
+  try {
+    fetch(apiUrl(params), { credentials:'omit', cache:'no-store', signal: ctrl ? ctrl.signal : undefined })
+      .then(function(r){ return r.text(); })
+      .then(function(t){ var d = null; try { d = JSON.parse(t); } catch(e){} finish(d && d.status ? d : null); })
+      .catch(function(){ clearTimeout(timer); if (!fired) jsonp(params, function(d){ finish(d); }); });
+  } catch(e){ clearTimeout(timer); jsonp(params, done); }
+}
+
+/* ---------- 예전 방식 (JSONP) — 폴백 ---------- */
+var seq = 0;
+function jsonp(params, done){
   var name = '__bdCb' + (++seq) + '_' + Date.now();
   var s = document.createElement('script'), fired = false;
   var timer = setTimeout(function(){ finish(null); }, 20000);
