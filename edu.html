@@ -282,11 +282,15 @@ function jsonp(params, done){
    그래서 "실패하면 다시 보내는" 방식이 아니라,
    답이 늦으면 답을 기다리면서 한 번 더 보내고 먼저 오는 것을 쓴다.
    (서버는 같은 사람·같은 날을 한 줄로만 기록하므로 두 번 보내도 안전하다) */
-var HEDGE_AT = [4000, 9000];   // 4초·9초 뒤에도 답이 없으면 한 번씩 더 보낸다
-var GIVE_UP  = 22000;          // 이때까지 아무 답도 없으면 실패로 알린다
+var HEDGE_AT       = [4000, 9000];    // 조회는 빨리 한 번 더 보낸다
+var HEDGE_AT_WRITE = [9000, 17000];   // 첫 등록(쓰기)은 늦게 — 서버가 이미 기록했는데
+                                      //   두 번째 요청이 "이미 있음" 으로 답하면
+                                      //   처음 온 사람에게 엉뚱한 안내가 나가기 때문
+var GIVE_UP  = 26000;                 // 이때까지 아무 답도 없으면 실패로 알린다
 
 function apiRetry(params, done){
   var settled = false, timers = [], lastBad = null, sent = 0;
+  var delays = (params && params.mode === 'join') ? HEDGE_AT_WRITE : HEDGE_AT;
 
   function finish(res){
     if (settled) return;
@@ -312,8 +316,8 @@ function apiRetry(params, done){
   }
 
   fire();
-  for (var k = 0; k < HEDGE_AT.length; k++){
-    (function(){ timers.push(setTimeout(fire, HEDGE_AT[k])); })();
+  for (var k = 0; k < delays.length; k++){
+    (function(){ timers.push(setTimeout(fire, delays[k])); })();
   }
   timers.push(setTimeout(function(){ finish(lastBad || { status: 'neterr' }); }, GIVE_UP));
 }
