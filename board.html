@@ -287,10 +287,18 @@ function renderWarn(list){
 }
 
 /* ---------- 현황 갱신 ---------- */
-function refresh(){
+/* 구글 서버는 한동안 쉬었다가 처음 부르면 답이 늦거나 한 번 실패한다(콜드 스타트).
+   여기서 그냥 포기하면 다음 갱신(20초 뒤)까지 QR 이 빈 채로 남아
+   강의장 화면을 켠 직후가 제일 곤란해진다. → 실패하면 짧게 몇 번 다시 부른다. */
+function refresh(attempt){
+  attempt = attempt || 0;
   api({ mode:'board', key: ADMIN_KEY }, function(res){
     var st = document.getElementById('status');
     if (!res || res.status === 'error'){
+      if (attempt < 4){
+        setTimeout(function(){ refresh(attempt + 1); }, 2000 + attempt * 1500);
+        return;
+      }
       st.className = 'status shut';
       st.textContent = '⚠ 서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.';
       return;
@@ -353,8 +361,15 @@ function refresh(){
     }
   });
 }
-refresh();
-setInterval(refresh, 20000);   // 20초마다 갱신
+refresh(0);
+setInterval(function(){ refresh(0); }, 20000);   // 20초마다 갱신
+
+// 저장된 키가 없으면 서버 응답을 기다릴 것 없이 바로 입력창을 보여준다.
+// (기다리게 하면 화면이 "불러오는 중" 인 채로 몇 초씩 멈춰 있어 뭘 해야 할지 알 수 없다.
+//  QR 매일변경이 꺼져 있는 경우엔 응답이 오는 즉시 QR 로 바뀐다)
+if (!ADMIN_KEY){
+  setTimeout(function(){ if (!curQR && !askingKey) askKey(null); }, 900);
+}
 </script>
 </body>
 </html>
