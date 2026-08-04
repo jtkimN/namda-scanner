@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>교육 입장 QR — 강의장 화면</title>
+<style>
+  *{box-sizing:border-box;}
+  :root{--navy:#0f2a4a;--blue:#2563eb;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    background:#fff;color:var(--ink);
+    display:flex;flex-direction:column;min-height:100vh;
+  }
+
+  header{
+    background:linear-gradient(135deg,#12315a,#0b1f3a);color:#fff;
+    padding:20px 34px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;
+  }
+  header h1{margin:0;font-size:clamp(20px,2.4vw,32px);font-weight:800;letter-spacing:-.5px;}
+  header .now{text-align:right;line-height:1.25;}
+  header .now .d{font-size:clamp(13px,1.3vw,17px);color:#b9cbe4;}
+  header .now .t{font-size:clamp(28px,3.4vw,46px);font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-1px;}
+
+  main{flex:1;display:flex;align-items:center;justify-content:center;gap:clamp(24px,4vw,64px);
+    padding:clamp(20px,3vw,44px);flex-wrap:wrap;}
+
+  /* QR */
+  .qr-panel{text-align:center;}
+  .qr-box{width:clamp(280px,34vw,460px);height:clamp(280px,34vw,460px);
+    background:#fff;border:3px solid var(--navy);border-radius:24px;padding:clamp(14px,1.6vw,22px);
+    display:flex;align-items:center;justify-content:center;}
+  .qr-box svg{width:100%;height:100%;display:block;}
+  .qr-cap{margin-top:16px;font-size:clamp(15px,1.5vw,20px);font-weight:800;color:var(--navy);}
+
+  /* 안내 */
+  .info{max-width:560px;}
+  .lead{font-size:clamp(22px,2.6vw,36px);font-weight:900;line-height:1.45;margin:0 0 10px;letter-spacing:-.6px;}
+  .lead .em{color:var(--blue);}
+  .sub{font-size:clamp(15px,1.5vw,21px);color:var(--muted);line-height:1.6;margin:0 0 26px;}
+
+  .times{border:2px solid var(--line);border-radius:18px;overflow:hidden;margin-bottom:22px;}
+  .times .row{display:flex;align-items:center;justify-content:space-between;
+    padding:clamp(11px,1.2vw,16px) clamp(16px,1.8vw,24px);border-bottom:1px solid var(--line);
+    font-size:clamp(16px,1.6vw,23px);}
+  .times .row:last-child{border-bottom:0;}
+  .times .row.on{background:#eff6ff;}
+  .times .day{font-weight:800;color:var(--navy);}
+  .times .hm{font-weight:900;color:var(--blue);font-variant-numeric:tabular-nums;}
+  .times .row.on .day::after{content:' · 오늘';font-size:.75em;color:var(--blue);font-weight:800;}
+
+  .status{border-radius:16px;padding:clamp(14px,1.5vw,20px) clamp(16px,1.8vw,24px);
+    font-size:clamp(15px,1.5vw,20px);font-weight:800;line-height:1.5;}
+  .status.open{background:#ecfdf5;color:#166534;border:2px solid #86efac;}
+  .status.shut{background:#fff7ed;color:#9a3412;border:2px solid #fed7aa;}
+  .status .count{font-size:1.5em;font-weight:900;}
+
+  .recent{margin-top:14px;font-size:clamp(13px,1.3vw,17px);color:var(--muted);line-height:1.9;}
+  .recent b{color:var(--ink);}
+
+  /* 관리자에게만 필요한 설정 경고 — 인쇄물에는 나오지 않는다 */
+  .warn{margin-top:14px;border:2px solid #fca5a5;background:#fef2f2;color:#991b1b;
+    border-radius:14px;padding:12px 16px;font-size:clamp(13px,1.3vw,16px);line-height:1.6;font-weight:700;}
+  .warn div + div{margin-top:6px;}
+
+  footer{padding:12px 34px 18px;text-align:center;font-size:13px;color:#94a3b8;}
+
+  .hidden{display:none !important;}
+
+  /* ---------- 인쇄(A4 세로) : 이 화면을 그대로 종이로 ---------- */
+  @media print{
+    @page{size:A4 portrait;margin:14mm;}
+    body{background:#fff;}
+    header{background:#fff !important;color:var(--navy) !important;padding:0 0 8mm;
+      border-bottom:2px solid var(--navy);display:block;text-align:center;}
+    header h1{font-size:26pt;}
+    header .now{display:none;}
+    main{display:block;padding:10mm 0 0;text-align:center;}
+    .qr-panel{margin-bottom:9mm;}
+    .qr-box{width:96mm;height:96mm;margin:0 auto;border-width:2px;}
+    .info{max-width:none;margin:0 auto;}
+    .lead{font-size:19pt;}
+    .sub{font-size:12pt;margin-bottom:7mm;}
+    .times{max-width:110mm;margin:0 auto 6mm;}
+    .times .row{font-size:14pt;padding:3.4mm 7mm;}
+    .times .row.on{background:#fff;}
+    .times .row.on .day::after{content:'';}
+    .status,.recent,.warn,footer,.qr-cap{display:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="hName">교육 입장 확인</h1>
+  <div class="now">
+    <div class="d" id="nDate">—</div>
+    <div class="t" id="nTime">--:--</div>
+  </div>
+</header>
+
+<main>
+  <div class="qr-panel">
+    <div class="qr-box"><div id="qrBox" style="width:100%;height:100%;"></div></div>
+    <div class="qr-cap" id="qrCap">휴대폰 카메라로 비춰 주세요</div>
+  </div>
+
+  <div class="info">
+    <p class="lead">교육 입장 확인을 위해<br><span class="em">QR코드를 스캔</span>해 주세요.</p>
+    <p class="sub">QR 접속 시 입장 날짜와 시간이 자동으로 기록됩니다.<br>
+      처음 오신 분만 이름·휴대폰 번호를 한 번 입력하시면 됩니다. (출석 확인 외 용도로 쓰지 않습니다)</p>
+
+    <div class="times" id="times">
+      <div class="row"><span class="day">화요일</span><span class="hm">15:30 ~</span></div>
+      <div class="row"><span class="day">목요일</span><span class="hm">15:30 ~</span></div>
+      <div class="row"><span class="day">토요일</span><span class="hm">14:00 ~</span></div>
+    </div>
+
+    <div class="status shut" id="status">불러오는 중…</div>
+    <div class="recent hidden" id="recent"></div>
+    <div class="warn hidden" id="warn"></div>
+  </div>
+</main>
+
+<footer>이 화면은 강의장 앞에 띄워 두는 용도입니다 · 인쇄하려면 Ctrl+P (A4 한 장)</footer>
+
+<script src="lib/qrcode.js"></script>
+<script>
+/* ============================================================
+   ⚙️ 설정 — 아래 두 줄만 바꾸면 됩니다
+   ① API      : Apps Script [배포 > 웹 앱] 에서 나온 /exec 주소
+   ② CHECKIN  : 참석자가 열게 될 edu.html 의 주소 (QR 에 들어갑니다)
+
+   참석자 이름을 전부 보려면 주소 뒤에 ?key=관리자키 를 붙여서 여세요.
+   (예:  board.html?key=abcd1234...)  — 안 붙이면 홍*동 처럼 가려집니다.
+   ============================================================ */
+var API     = 'https://script.google.com/macros/s/AKfycbzLZIdcNwvLgOdcnnYcwwzs3vLxvDcydPgmjPl66JgyXawLEcWOesMCvGUMCN5ZD7rB-A/exec';
+var CHECKIN = 'https://checkin.namda.site/edu.html';
+
+var ADMIN_KEY = new URLSearchParams(location.search).get('key') || '';
+var WD = ['일','월','화','수','목','금','토'];
+
+// 화면에 넣기 전 외부 값의 HTML 특수문자를 무력화
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* ---------- QR 그리기 ---------- */
+(function(){
+  try{
+    var qr = qrcode(0, 'M');           // 오류정정 M — 인쇄/화면 스캔에 안정적
+    qr.addData(CHECKIN);
+    qr.make();
+    document.getElementById('qrBox').innerHTML = qr.createSvgTag({ scalable:true, margin:0 });
+  }catch(e){
+    document.getElementById('qrBox').innerHTML =
+      '<div style="font-size:15px;color:#b91c1c;font-weight:700;padding:20px;line-height:1.6">'
+      + 'QR을 만들지 못했습니다.<br>lib/qrcode.js 가 같은 폴더에 있는지 확인해 주세요.</div>';
+  }
+})();
+
+/* ---------- 서버 호출 (JSONP) ---------- */
+var seq = 0;
+function api(params, done){
+  var name = '__bdCb' + (++seq) + '_' + Date.now();
+  var s = document.createElement('script'), fired = false;
+  var timer = setTimeout(function(){ finish(null); }, 20000);
+  function finish(d){
+    if (fired) return; fired = true;
+    clearTimeout(timer);
+    try{ delete window[name]; }catch(e){ window[name] = undefined; }
+    if (s.parentNode) s.parentNode.removeChild(s);
+    done(d);
+  }
+  window[name] = function(d){ finish(d); };
+  s.onerror = function(){ finish(null); };
+  var q = [];
+  for (var k in params){ if (params[k]) q.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k])); }
+  q.push('callback=' + name); q.push('_=' + Date.now());
+  s.src = API + (API.indexOf('?') >= 0 ? '&' : '?') + q.join('&');
+  document.head.appendChild(s);
+}
+
+/* ---------- 시계 (서버 시각에 맞춤) ---------- */
+var offsetMs = 0, haveServerTime = false;
+function tick(){
+  var d = new Date(Date.now() + offsetMs);
+  // 서버(한국) 시각으로 표시
+  var kst = new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + (9 * 3600000));
+  var use = haveServerTime ? kst : d;
+  var hh = ('0' + use.getHours()).slice(-2), mm = ('0' + use.getMinutes()).slice(-2), ss = ('0' + use.getSeconds()).slice(-2);
+  document.getElementById('nTime').textContent = hh + ':' + mm + ':' + ss;
+  document.getElementById('nDate').textContent =
+    use.getFullYear() + '년 ' + (use.getMonth()+1) + '월 ' + use.getDate() + '일 (' + WD[use.getDay()] + ')';
+}
+setInterval(tick, 1000); tick();
+
+/* ---------- 요일·시간표 ----------
+   ⚠️ 설정 원문을 여기서 다시 해석하지 않는다.
+      서버가 "실제로 인식한" 목록(scheduleList)을 그대로 그려야,
+      서버는 못 읽었는데 화면에는 멀쩡히 보이는 불일치가 생기지 않는다.
+      (응답 전에는 HTML 에 적어둔 기본 요일표가 보인다) */
+function renderTimes(list, todayDow){
+  var box = document.getElementById('times');
+  if (!list || !list.length){ box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  box.innerHTML = list.map(function(r){
+    var on = (r.dow === todayDow) ? ' on' : '';
+    return '<div class="row' + on + '"><span class="day">' + esc(r.dow) + '요일</span>'
+         + '<span class="hm">' + esc(r.hm) + ' ~</span></div>';
+  }).join('');
+}
+
+/* ---------- 설정 경고 (관리자용) ---------- */
+function renderWarn(list){
+  var box = document.getElementById('warn');
+  if (!list || !list.length){ box.classList.add('hidden'); box.innerHTML = ''; return; }
+  box.classList.remove('hidden');
+  box.innerHTML = list.map(function(w){ return '<div>⚠ ' + esc(w) + '</div>'; }).join('');
+}
+
+/* ---------- 현황 갱신 ---------- */
+function refresh(){
+  api({ mode:'board', key: ADMIN_KEY }, function(res){
+    var st = document.getElementById('status');
+    if (!res || res.status === 'error'){
+      st.className = 'status shut';
+      st.textContent = '⚠ 서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.';
+      return;
+    }
+
+    if (res.eduName) document.getElementById('hName').textContent = res.eduName + ' — 입장 확인';
+
+    // 서버 시각에 시계 맞추기
+    if (res.serverTime){
+      var iso = String(res.serverTime).replace(' ', 'T') + '+09:00';
+      var sv = new Date(iso);
+      if (!isNaN(sv.getTime())){ offsetMs = sv.getTime() - Date.now(); haveServerTime = true; tick(); }
+    }
+
+    renderTimes(res.scheduleList, res.dow);
+    renderWarn(res.warn);
+
+    var t = res.today || { count:0, recent:[] };
+    if (res.open){
+      st.className = 'status open';
+      st.innerHTML = '✅ 지금 입장 확인이 <b>열려 있습니다</b><br>오늘 입장 <span class="count">' + t.count + '</span> 명';
+    } else {
+      st.className = 'status shut';
+      var why = (res.reason === 'noday') ? ('오늘(' + esc(res.dow) + '요일)은 교육일이 아닙니다.')
+              : (res.reason === 'early')  ? ('입장 확인은 ' + esc(res.startText) + ' 교육 시작 전에 열립니다.')
+              :                             ('오늘 입장 확인 시간이 종료되었습니다.');
+      st.innerHTML = '⏸ ' + why + (t.count ? ('<br>오늘 입장 <span class="count">' + t.count + '</span> 명') : '');
+    }
+
+    var rec = document.getElementById('recent');
+    if (t.recent && t.recent.length){
+      rec.classList.remove('hidden');
+      rec.innerHTML = '최근 입장 &nbsp; ' + t.recent.map(function(r){
+        return '<b>' + esc(r.name || '참석자') + '</b> ' + esc(r.time);
+      }).join(' &nbsp;·&nbsp; ');
+    } else {
+      rec.classList.add('hidden');
+    }
+  });
+}
+refresh();
+setInterval(refresh, 20000);   // 20초마다 갱신
+</script>
+</body>
+</html>

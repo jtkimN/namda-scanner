@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f2a4a">
+<meta name="robots" content="noindex">
+<title>교육 입장 확인</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  :root{--navy:#0f2a4a;--blue:#2563eb;--ink:#0f172a;--muted:#64748b;--line:#e6ebf1;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    background:#eef2f7;color:var(--ink);
+    min-height:100vh;min-height:100dvh;
+    display:flex;align-items:flex-start;justify-content:center;
+    padding:20px 14px 40px;
+  }
+  .card{width:100%;max-width:440px;background:#fff;border-radius:24px;
+    box-shadow:0 12px 40px rgba(15,42,74,.14);overflow:hidden;}
+
+  .head{background:linear-gradient(135deg,#12315a,#0b1f3a);color:#fff;padding:20px 22px;text-align:center;}
+  .head .badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:2px;
+    color:#7dd3fc;background:rgba(56,189,248,.16);padding:5px 12px;border-radius:999px;margin-bottom:10px;}
+  .head h1{margin:0;font-size:19px;font-weight:800;line-height:1.4;}
+  .head .sub{margin-top:6px;font-size:13px;color:#b9cbe4;}
+
+  .body{padding:26px 22px 22px;text-align:center;}
+
+  /* 아이콘 */
+  .icon{width:88px;height:88px;border-radius:50%;margin:4px auto 18px;
+    display:flex;align-items:center;justify-content:center;font-size:44px;font-weight:900;color:#fff;}
+  .icon.ok{background:linear-gradient(135deg,#16a34a,#15803d);box-shadow:0 8px 24px rgba(22,163,74,.3);}
+  .icon.dup{background:linear-gradient(135deg,#0ea5e9,#0369a1);box-shadow:0 8px 24px rgba(14,165,233,.3);}
+  .icon.no{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 8px 24px rgba(245,158,11,.3);}
+  .icon.err{background:linear-gradient(135deg,#ef4444,#b91c1c);box-shadow:0 8px 24px rgba(239,68,68,.3);}
+
+  .big{font-size:29px;font-weight:900;line-height:1.35;margin:0 0 6px;}
+  .lead{font-size:17px;color:var(--muted);line-height:1.6;margin:0;}
+
+  .stamp{margin:22px 0 4px;background:#f6f8fb;border-radius:16px;padding:16px 14px;}
+  .stamp .d{font-size:17px;font-weight:800;color:var(--navy);}
+  .stamp .t{font-size:38px;font-weight:900;color:var(--blue);letter-spacing:-1px;line-height:1.2;margin-top:2px;
+    font-variant-numeric:tabular-nums;}
+
+  /* 입력 폼 */
+  .field{text-align:left;margin:0 0 16px;}
+  .field label{display:block;font-size:15px;font-weight:800;margin-bottom:8px;color:var(--navy);}
+  .field .hint{font-size:13px;font-weight:500;color:var(--muted);margin-left:6px;}
+  .field input{width:100%;font-size:21px;padding:16px 16px;border:2px solid var(--line);
+    border-radius:14px;outline:none;font-family:inherit;background:#fff;color:var(--ink);}
+  .field input:focus{border-color:var(--blue);}
+
+  .btn{display:block;width:100%;border:0;border-radius:16px;padding:19px;font-size:19px;font-weight:800;
+    font-family:inherit;cursor:pointer;background:var(--blue);color:#fff;margin-top:6px;}
+  .btn:active{transform:translateY(1px);}
+  .btn[disabled]{opacity:.55;}
+  .btn.ghost{background:#eef2f7;color:var(--navy);}
+
+  .note{margin:16px 4px 0;font-size:14px;color:var(--muted);line-height:1.65;}
+  .note b{color:var(--ink);}
+
+  .privacy{margin:18px 2px 0;font-size:12.5px;color:#94a3b8;line-height:1.6;text-align:center;}
+  .privacy b{color:#64748b;}
+
+  .foot{padding:14px 22px 22px;text-align:center;font-size:12px;color:#94a3b8;line-height:1.7;}
+  .foot a{color:#94a3b8;text-decoration:underline;cursor:pointer;}
+
+  .spin{width:46px;height:46px;border:5px solid #e2e8f0;border-top-color:var(--blue);
+    border-radius:50%;margin:34px auto;animation:sp .8s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+
+  .hidden{display:none !important;}
+  .err-msg{margin-top:14px;font-size:15px;color:#b91c1c;font-weight:700;min-height:20px;}
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div class="head">
+    <div class="badge">입장 확인</div>
+    <h1 id="hTitle">교육 입장 확인</h1>
+    <div class="sub" id="hSub" style="display:none"></div>
+  </div>
+
+  <!-- ① 처리 중 -->
+  <div class="body" id="vLoad">
+    <div class="spin"></div>
+    <p class="lead" id="loadMsg">입장을 확인하고 있습니다…</p>
+  </div>
+
+  <!-- ② 첫 방문 — 이름·연락처 입력 -->
+  <div class="body hidden" id="vForm">
+    <p class="lead" style="margin-bottom:22px;">
+      처음 오셨네요.<br><b style="color:#0f172a;">한 번만</b> 입력하시면<br>다음부터는 자동으로 처리됩니다.
+    </p>
+    <div class="field">
+      <label for="fName">이름</label>
+      <input id="fName" type="text" inputmode="text" autocomplete="name" placeholder="예) 홍길동" maxlength="20">
+    </div>
+    <div class="field hidden" id="fPhoneWrap">
+      <label for="fPhone">휴대폰 번호 <span class="hint" id="phoneHint">(같은 이름 구분용)</span></label>
+      <!-- maxlength 를 짧게 잡으면 번호 중간을 고칠 때 글자가 안 들어간다.
+           길이 통제는 fmtPhone() 이 하므로 여기서는 넉넉히 둔다. -->
+      <input id="fPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-1234-5678" maxlength="20">
+    </div>
+    <button class="btn" id="btnJoin">입장 확인</button>
+    <div class="err-msg" id="formErr"></div>
+    <p class="privacy" id="privacyNote">
+      입력하신 정보는 <b>출석 확인 용도로만</b> 쓰이며,<br>담당자의 출석부에만 저장됩니다.
+    </p>
+  </div>
+
+  <!-- ③ 결과 -->
+  <div class="body hidden" id="vDone">
+    <div class="icon" id="dIcon">✓</div>
+    <p class="big" id="dTitle">입장 완료</p>
+    <p class="lead" id="dLead"></p>
+    <div class="stamp" id="dStamp">
+      <div class="d" id="dDate"></div>
+      <div class="t" id="dTime"></div>
+    </div>
+    <p class="note" id="dNote"></p>
+    <button class="btn ghost hidden" id="btnRetry" style="margin-top:18px;">다시 시도</button>
+  </div>
+
+  <div class="foot">
+    <span id="fWho"></span>
+    <a id="btnReset" class="hidden">본인이 아니신가요?</a>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ⚙️ 설정 — 여기 한 줄만 바꾸면 됩니다
+   구글 Apps Script [배포 > 웹 앱] 에서 나온 /exec 주소를 그대로 붙여넣으세요.
+   ============================================================ */
+var API = 'https://script.google.com/macros/s/AKfycbzLZIdcNwvLgOdcnnYcwwzs3vLxvDcydPgmjPl66JgyXawLEcWOesMCvGUMCN5ZD7rB-A/exec';
+
+/* ---------- 저장소 (이 기기에만 저장됩니다) ---------- */
+var KEY = 'namda_edu_v1';
+function load(){
+  try { return JSON.parse(localStorage.getItem(KEY) || 'null') || null; } catch(e){ return null; }
+}
+function save(o){
+  try { localStorage.setItem(KEY, JSON.stringify(o)); } catch(e){}
+}
+function wipe(){
+  try { localStorage.removeItem(KEY); } catch(e){}
+}
+function deviceId(){
+  var k = 'namda_edu_dev', v = null;
+  try { v = localStorage.getItem(k); } catch(e){}
+  if (!v){
+    v = 'd' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    try { localStorage.setItem(k, v); } catch(e){}
+  }
+  return v.slice(0, 24);
+}
+
+/* ---------- 서버 호출 (JSONP — CORS 문제 회피) ---------- */
+var seq = 0;
+function api(params, done){
+  var name = '__eduCb' + (++seq) + '_' + Date.now();
+  var s = document.createElement('script');
+  var fired = false;
+  // 서버 락 대기(최대 8초) + 처리 시간보다 넉넉해야 한다.
+  // 이보다 짧으면 "서버는 기록했는데 화면은 실패"로 보이는 창이 생긴다.
+  var timer = setTimeout(function(){ finish({ status:'neterr' }); }, 30000);
+
+  function finish(data){
+    if (fired) return;
+    fired = true;
+    clearTimeout(timer);
+    try { delete window[name]; } catch(e){ window[name] = undefined; }
+    if (s.parentNode) s.parentNode.removeChild(s);
+    done(data);
+  }
+  window[name] = function(data){ finish(data || { status:'neterr' }); };
+  s.onerror = function(){ finish({ status:'neterr' }); };
+
+  var q = [];
+  for (var k in params){ if (params[k] !== undefined && params[k] !== null) q.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k])); }
+  q.push('callback=' + name);
+  q.push('_=' + Date.now());
+  s.src = API + (API.indexOf('?') >= 0 ? '&' : '?') + q.join('&');
+  document.head.appendChild(s);
+}
+
+/* ---------- 자동 재시도 ----------
+   교육 시작 직후에는 여러 명이 동시에 스캔해 서버가 잠깐 밀린다(busy).
+   여기서 바로 빨간 오류를 띄우면 어르신들이 당황해 계속 다시 누르게 되므로,
+   조용히 몇 번 다시 시도한 뒤에도 안 되면 그때 오류를 보여준다. */
+var RETRY_DELAYS = [1500, 3000, 6000];
+function apiRetry(params, done, attempt){
+  attempt = attempt || 0;
+  api(params, function(res){
+    var again = (!res || res.status === 'neterr' || res.status === 'busy');
+    if (again && attempt < RETRY_DELAYS.length){
+      $('loadMsg').textContent = '사람이 몰려 잠시 기다리는 중입니다…\n자리에 앉아 계시면 자동으로 처리됩니다.';
+      show('vLoad');
+      var wait = RETRY_DELAYS[attempt] + Math.floor(Math.random() * 700);
+      setTimeout(function(){ apiRetry(params, done, attempt + 1); }, wait);
+      return;
+    }
+    done(res);
+  });
+}
+
+/* ---------- 화면 전환 ---------- */
+var $ = function(id){ return document.getElementById(id); };
+function show(which){
+  ['vLoad','vForm','vDone'].forEach(function(v){ $(v).classList.toggle('hidden', v !== which); });
+}
+function setHead(eduName, sub){
+  if (eduName) $('hTitle').textContent = eduName;
+  var el = $('hSub');
+  el.textContent = sub || '';
+  el.style.display = sub ? '' : 'none';
+}
+// 화면에 넣기 전 이름 등 외부 값에서 HTML 특수문자를 무력화
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function fmtDate(d, dow){
+  if (!d) return '';
+  var p = String(d).split('-');
+  if (p.length !== 3) return d;
+  return p[0] + '년 ' + parseInt(p[1],10) + '월 ' + parseInt(p[2],10) + '일' + (dow ? ' (' + dow + ')' : '');
+}
+
+/* ---------- 결과 표시 ---------- */
+function result(kind, title, lead, date, dow, time, note){
+  var ic = $('dIcon');
+  ic.className = 'icon ' + kind;
+  ic.textContent = (kind === 'ok') ? '✓' : (kind === 'dup') ? '✓' : (kind === 'no') ? '!' : '×';
+  $('dTitle').innerHTML = title;   // 호출부에서 외부 값은 esc() 로 감싸 넘긴다
+  $('dLead').innerHTML = lead || '';
+  if (time){
+    $('dStamp').classList.remove('hidden');
+    $('dDate').textContent = fmtDate(date, dow);
+    $('dTime').textContent = time;
+  } else {
+    $('dStamp').classList.add('hidden');
+  }
+  $('dNote').innerHTML = note || '';
+  show('vDone');
+}
+
+function showWho(){
+  var me = load();
+  if (me && me.name){
+    $('fWho').textContent = me.name + ' 님으로 등록되어 있습니다 · ';
+    $('btnReset').classList.remove('hidden');
+  } else {
+    $('fWho').textContent = '';
+    $('btnReset').classList.add('hidden');
+  }
+}
+
+/* ---------- 서버 응답 처리 ---------- */
+function handle(res, me){
+  if (!res || res.status === 'neterr'){
+    result('err', '연결 실패',
+      '인터넷 연결을 확인한 뒤<br>아래 버튼을 눌러 주세요.', '', '', '', '');
+    $('btnRetry').classList.remove('hidden');
+    showWho();
+    return;
+  }
+
+  if (res.eduName) setHead(res.eduName, '');
+  $('btnRetry').classList.add('hidden');
+
+  if (res.status === 'ok'){
+    if (res.mid && res.tk) save({ mid: res.mid, tk: res.tk, name: res.name });
+    else if (me && res.name) save({ mid: me.mid, tk: me.tk, name: res.name });
+    result('ok', esc(res.name) + ' 님<br>입장 완료',
+      '출석이 정상 기록되었습니다.', res.date, res.dow, res.time,
+      '다음 교육부터는 QR을 찍기만 하면<br>바로 이 화면이 나옵니다.');
+    showWho();
+    return;
+  }
+
+  if (res.status === 'duplicate'){
+    if (res.mid && res.tk) save({ mid: res.mid, tk: res.tk, name: res.name });
+    result('dup', '이미 입장 처리되었습니다',
+      esc(res.name) + ' 님은 오늘 이미 확인되었습니다.', res.date, res.dow, res.time,
+      '위 시각으로 기록되어 있으니<br>다시 찍지 않으셔도 됩니다.');
+    showWho();
+    return;
+  }
+
+  if (res.status === 'closed'){
+    result('no', '지금은 입장 시간이 아닙니다', esc(res.message),
+      '', '', '',
+      res.scheduleText ? ('교육 시간 — <b>' + esc(res.scheduleText) + '</b>') : '');
+    $('btnRetry').classList.remove('hidden');
+    showWho();
+    return;
+  }
+
+  if (res.status === 'unknown'){
+    // 회원 정보가 지워졌거나 맞지 않음 → 다시 이름부터
+    // (설정을 새로 받아와야 연락처 필수 여부·교육명이 맞게 표시된다)
+    wipe();
+    apiRetry({ mode:'status' }, function(st){
+      startForm(st && st.status === 'ok' ? st : null);
+      $('formErr').textContent = '등록 정보를 다시 확인해야 합니다. 이름과 번호를 입력해 주세요.';
+    });
+    return;
+  }
+
+  if (res.status === 'badname' || res.status === 'badphone'){
+    startForm(null);
+    $('formErr').textContent = res.message || '입력을 다시 확인해 주세요.';
+    return;
+  }
+
+  result('err', (res.status === 'busy') ? '잠시만 기다려 주세요' : '처리 중 문제가 발생했습니다',
+    esc(res.message ? String(res.message).slice(0,120) : '잠시 후 다시 시도해 주세요.'), '', '', '', '');
+  $('btnRetry').classList.remove('hidden');
+  showWho();
+}
+
+/* ---------- 이름·연락처 입력 화면 ---------- */
+var phoneMode = '필수';
+function startForm(st){
+  if (st){
+    if (st.eduName) setHead(st.eduName, st.dow ? (st.date + ' (' + st.dow + ') ' + st.time) : '');
+    phoneMode = st.phoneMode || '필수';
+  }
+  var wrap = $('fPhoneWrap');
+  if (phoneMode === '사용안함') wrap.classList.add('hidden');
+  else {
+    wrap.classList.remove('hidden');
+    $('phoneHint').textContent = (phoneMode === '필수') ? '(같은 이름 구분용)' : '(선택)';
+  }
+  // 무엇을 받는지는 어떤 모드에서든 반드시 알린다
+  $('privacyNote').innerHTML = (phoneMode === '사용안함')
+    ? '입력하신 <b>이름</b>은 출석 확인 용도로만 쓰이며,<br>담당자의 출석부에만 저장됩니다.'
+    : '입력하신 <b>이름·휴대폰 번호</b>는 출석 확인 용도로만 쓰이며,<br>담당자의 출석부에만 저장됩니다.';
+  $('privacyNote').classList.remove('hidden');
+  show('vForm');
+  showWho();
+  setTimeout(function(){ try { $('fName').focus(); } catch(e){} }, 120);
+}
+
+// 입력값에서 국내 번호 숫자만 뽑는다 (+82 를 0 으로 되돌림 — 자동완성·붙여넣기 대비)
+function phoneDigits(v){
+  return String(v).replace(/[^0-9]/g,'').replace(/^820?/, '0').slice(0,11);
+}
+
+// 화면 표시용 하이픈 — 서버의 저장 형식(formatPhone_)과 같은 규칙이어야 한다
+function fmtPhone(v){
+  var d = phoneDigits(v);
+  if (d.slice(0,2) === '02'){                       // 서울 지역번호는 2자리
+    if (d.length < 3) return d;
+    if (d.length < 7) return '02-' + d.slice(2);
+    if (d.length === 9) return '02-' + d.slice(2,5) + '-' + d.slice(5);
+    return '02-' + d.slice(2,6) + '-' + d.slice(6,10);
+  }
+  if (d.length < 4) return d;
+  if (d.length < 8) return d.slice(0,3) + '-' + d.slice(3);
+  if (d.length === 10) return d.slice(0,3) + '-' + d.slice(3,6) + '-' + d.slice(6);
+  return d.slice(0,3) + '-' + d.slice(3,7) + '-' + d.slice(7);
+}
+
+function submitJoin(){
+  var name = $('fName').value.replace(/\s+/g,' ').trim();
+  var digits = phoneDigits($('fPhone').value);
+  $('formErr').textContent = '';
+
+  if (name.length < 2){ $('formErr').textContent = '이름을 2자 이상 입력해 주세요.'; return; }
+  if (!/^[가-힣a-zA-Z0-9 .]+$/.test(name)){ $('formErr').textContent = '이름은 한글 또는 영문으로 입력해 주세요.'; return; }
+  if (phoneMode !== '사용안함' && digits){
+    // 국내 번호는 0 으로 시작하는 9~11자리 (서버 cleanPhone_ 과 같은 규칙)
+    if (!/^0\d{8,10}$/.test(digits)){
+      $('formErr').textContent = '휴대폰 번호를 다시 확인해 주세요. (예: 010-1234-5678)'; return;
+    }
+  }
+  if (phoneMode === '필수' && !digits){
+    $('formErr').textContent = '휴대폰 번호를 입력해 주세요.'; return;
+  }
+
+  $('btnJoin').disabled = true;
+  $('loadMsg').textContent = '입장을 확인하고 있습니다…';
+  show('vLoad');
+  apiRetry({ mode:'join', name:name, phone:digits, dev:deviceId() }, function(res){
+    $('btnJoin').disabled = false;
+    handle(res, null);
+  });
+}
+
+/* ---------- 시작 ---------- */
+function start(){
+  show('vLoad');
+  var me = load();
+
+  if (me && me.mid && me.tk){
+    $('loadMsg').textContent = (me.name ? me.name + ' 님, ' : '') + '입장을 확인하고 있습니다…';
+    apiRetry({ mode:'checkin', mid:me.mid, tk:me.tk, dev:deviceId() }, function(res){ handle(res, me); });
+  } else {
+    $('loadMsg').textContent = '잠시만 기다려 주세요…';
+    apiRetry({ mode:'status' }, function(res){
+      // 'ok' 가 아니면(연결 실패·서버 오류·거부) 폼을 보여주면 안 된다.
+      // 다 입력하고 나서야 실패하는 것보다 지금 알리는 편이 낫다.
+      if (!res || res.status !== 'ok'){ handle(res, null); return; }
+      if (res.open === false){ handle({
+        status:'closed',
+        message: closedText(res),
+        scheduleText: res.scheduleText,
+        eduName: res.eduName
+      }, null); return; }
+      startForm(res);
+    });
+  }
+}
+
+function closedText(res){
+  if (res.reason === 'noday') return '오늘(' + esc(res.dow) + '요일)은 교육일이 아닙니다.';
+  if (res.reason === 'early') return '아직 입장 시간이 아닙니다. (' + esc(res.startText) + ' 교육)';
+  if (res.reason === 'late')  return '오늘 입장 확인 시간이 종료되었습니다. (' + esc(res.startText) + ' 교육)';
+  return '지금은 입장 확인 시간이 아닙니다.';
+}
+
+/* ---------- 이벤트 ---------- */
+$('btnJoin').addEventListener('click', submitJoin);
+$('fName').addEventListener('keydown', function(e){ if (e.key === 'Enter') submitJoin(); });
+$('fPhone').addEventListener('keydown', function(e){ if (e.key === 'Enter') submitJoin(); });
+$('fPhone').addEventListener('input', function(){
+  // 커서 위치를 "앞쪽 숫자 개수"로 기억한다.
+  // 그냥 값만 바꿔치면 번호 중간을 고칠 때 커서가 맨 뒤로 튄다.
+  var caret = this.selectionStart;
+  var digitsBefore = (this.value.slice(0, caret).match(/[0-9]/g) || []).length;
+  var v = fmtPhone(this.value);
+  if (v === this.value) return;
+  this.value = v;
+  var pos = v.length, seen = 0;
+  for (var i = 0; i < v.length; i++){
+    if (/[0-9]/.test(v[i])) seen++;
+    if (seen >= digitsBefore){ pos = i + 1; break; }
+  }
+  if (digitsBefore === 0) pos = 0;
+  try { this.setSelectionRange(pos, pos); } catch(e){}
+});
+$('btnRetry').addEventListener('click', start);
+$('btnReset').addEventListener('click', function(){
+  if (!confirm('저장된 등록 정보를 지우고 다시 입력합니다.\n계속할까요?')) return;
+  wipe();
+  $('fName').value = '';
+  $('fPhone').value = '';
+  start();
+});
+
+start();
+</script>
+</body>
+</html>
