@@ -145,7 +145,23 @@
 var API     = 'https://script.google.com/macros/s/AKfycbzLZIdcNwvLgOdcnnYcwwzs3vLxvDcydPgmjPl66JgyXawLEcWOesMCvGUMCN5ZD7rB-A/exec';
 var CHECKIN = 'https://checkin.namda.site/edu.html';
 
-var ADMIN_KEY = new URLSearchParams(location.search).get('key') || '';
+/* 관리자 키 — 한 번만 넣으면 이 컴퓨터가 기억한다.
+   · 주소에 ?key= 로 들어오면 저장하고 주소에서 지운다
+     → 인쇄할 때 종이에 키가 찍히지 않고, 화면을 남이 봐도 주소창에 키가 없다
+   · 그 다음부터는 board.html 만 열면 된다 */
+var KEYSTORE = 'namda_edu_boardkey';
+var ADMIN_KEY = '';
+(function(){
+  var fromUrl = new URLSearchParams(location.search).get('key') || '';
+  if (fromUrl){
+    ADMIN_KEY = fromUrl.trim();
+    try { localStorage.setItem(KEYSTORE, ADMIN_KEY); } catch(e){}
+    try { history.replaceState(null, '', location.pathname); } catch(e){}
+  } else {
+    try { ADMIN_KEY = (localStorage.getItem(KEYSTORE) || '').trim(); } catch(e){}
+  }
+})();
+
 var WD = ['일','월','화','수','목','금','토'];
 
 // 화면에 넣기 전 외부 값의 HTML 특수문자를 무력화
@@ -179,6 +195,36 @@ function qrNotice(html, color){
     + html + '</div>';
 }
 qrNotice('불러오는 중…');
+
+/* 관리자 키 입력 — 강의장 컴퓨터에서 처음 한 번만 */
+var askingKey = false;
+function askKey(msg){
+  askingKey = true;
+  curQR = '';
+  document.getElementById('qrBox').innerHTML =
+      '<div style="padding:16px;text-align:center;width:100%">'
+    +   '<div style="font-size:15px;font-weight:800;color:#b45309;line-height:1.6;margin-bottom:14px">'
+    +     (msg || '이 화면은 <b>관리자 키</b>가 필요합니다.')
+    +     '<div style="font-size:12.5px;font-weight:600;color:#64748b;margin-top:7px">'
+    +     '시트 메뉴 → 📋 교육 출석 → 관리자 키 확인</div>'
+    +   '</div>'
+    +   '<input id="keyIn" type="text" autocomplete="off" placeholder="관리자 키 붙여넣기" '
+    +     'style="width:94%;font-size:15px;padding:11px;border:2px solid #cbd5e1;border-radius:10px;text-align:center;font-family:inherit">'
+    +   '<button id="keyBtn" style="margin-top:10px;width:94%;font-size:15px;font-weight:800;padding:12px;'
+    +     'border:0;border-radius:10px;background:#2563eb;color:#fff;cursor:pointer;font-family:inherit">확인</button>'
+    +   '<div style="margin-top:11px;font-size:12px;color:#94a3b8;line-height:1.5">'
+    +     '한 번만 넣으면 이 컴퓨터가 기억합니다</div>'
+    + '</div>';
+  var go = function(){
+    var v = (document.getElementById('keyIn').value || '').trim();
+    if (!v) return;
+    try { localStorage.setItem(KEYSTORE, v); } catch(e){}
+    location.reload();
+  };
+  document.getElementById('keyBtn').onclick = go;
+  document.getElementById('keyIn').addEventListener('keydown', function(e){ if (e.key === 'Enter') go(); });
+  setTimeout(function(){ try { document.getElementById('keyIn').focus(); } catch(e){} }, 100);
+}
 
 /* ---------- 서버 호출 (JSONP) ---------- */
 var seq = 0;
@@ -261,17 +307,24 @@ function refresh(){
 
     // 오늘의 QR
     if (!res.qrDaily){
+      askingKey = false;
       drawQR(CHECKIN);                                   // 매일 변경 기능이 꺼져 있으면 고정 주소
     } else if (res.dayCode){
+      askingKey = false;
       drawQR(CHECKIN + '?qc=' + encodeURIComponent(res.dayCode));
       // 날짜는 종이에도 반드시 남는다 (인쇄 CSS 에서 .today 를 크게 보여준다)
       document.getElementById('qrCap').innerHTML =
         '휴대폰 카메라로 비춰 주세요'
         + '<span class="today">' + esc(res.date) + ' (' + esc(res.dow) + ') 전용 QR</span>';
-    } else {
-      qrNotice('이 화면은 <b>관리자 키</b>로 열어야 합니다.<br><br>'
-             + '주소 뒤에 <b>?key=관리자키</b> 를 붙여 주세요.<br>'
-             + '<span style="font-size:13px;font-weight:600">(시트 메뉴 → 교육 출석 → 관리자 키 확인)</span>', '#b45309');
+    } else if (!askingKey){
+      // 저장된 키가 있는데도 코드를 못 받았다면 그 키가 틀린 것이다 → 지우고 다시 묻는다
+      if (ADMIN_KEY){
+        try { localStorage.removeItem(KEYSTORE); } catch(e){}
+        ADMIN_KEY = '';
+        askKey('저장된 <b>관리자 키가 맞지 않습니다.</b><br>다시 넣어 주세요.');
+      } else {
+        askKey(null);
+      }
     }
 
     renderTimes(res.scheduleList, res.dow);
